@@ -2,22 +2,25 @@ import { useEffect, useState } from 'react'
 import { Calendar, dayjsLocalizer } from 'react-big-calendar'
 import dayjs from 'dayjs'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
+import { Button, Modal, Form, Input, TimePicker, DatePicker, Space } from 'antd'
+import './App.css'
 
 const localizer = dayjsLocalizer(dayjs)
 const API = 'http://localhost:8000'
 
-function App() {
+export default function App() {
   const [events, setEvents] = useState([])
-  const [showForm, setShowForm] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ title: '', description: '', date: '', start_time: '', end_time: '' })
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [form] = Form.useForm()
 
   const fetchEvents = () => {
     fetch(`${API}/events`)
       .then(res => res.json())
       .then(data => {
-        const formatted = data.map(e => ({
+        setEvents(data.map(e => ({
           id: e.id,
           title: e.title,
           description: e.description,
@@ -26,104 +29,83 @@ function App() {
           end_time: e.end_time,
           start: new Date(`${e.date}T${e.start_time || '00:00:00'}`),
           end: new Date(`${e.date}T${e.end_time || '23:59:00'}`),
-        }))
-        setEvents(formatted)
+        })))
       })
   }
 
   useEffect(() => { fetchEvents() }, [])
 
-  const openCreateForm = (slotInfo) => {
+  const openCreate = (slotInfo) => {
     setEditingId(null)
-    setForm({ title: '', description: '', date: dayjs(slotInfo.start).format('YYYY-MM-DD'), start_time: '', end_time: '' })
-    setShowForm(true)
-    setSelectedEvent(null)
-  }
-
-  const openEditForm = (event) => {
-    setEditingId(event.id)
-    setForm({
-      title: event.title,
-      description: event.description || '',
-      date: event.date,
-      start_time: event.start_time || '',
-      end_time: event.end_time || '',
+    form.setFieldsValue({
+      title: '',
+      description: '',
+      date: dayjs(slotInfo.start),
+      start_time: null,
+      end_time: null,
     })
-    setShowForm(true)
-    setSelectedEvent(null)
+    setFormOpen(true)
+    setDetailOpen(false)
   }
 
-  const closeForm = () => {
-    setShowForm(false)
-    setEditingId(null)
-    setForm({ title: '', description: '', date: '', start_time: '', end_time: '' })
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    const url = editingId ? `${API}/events/${editingId}` : `${API}/events`
-    fetch(url, {
-      method: editingId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    }).then(() => {
-      fetchEvents()
-      closeForm()
+  const openEdit = () => {
+    form.setFieldsValue({
+      title: selectedEvent.title,
+      description: selectedEvent.description || '',
+      date: dayjs(selectedEvent.date),
+      start_time: selectedEvent.start_time ? dayjs(selectedEvent.start_time, 'HH:mm:ss') : null,
+      end_time: selectedEvent.end_time ? dayjs(selectedEvent.end_time, 'HH:mm:ss') : null,
     })
+    setEditingId(selectedEvent.id)
+    setDetailOpen(false)
+    setFormOpen(true)
   }
 
-  const handleDelete = (event) => {
-    if (!confirm(`刪除「${event.title}」？`)) return
-    fetch(`${API}/events/${event.id}`, { method: 'DELETE' })
-      .then(() => {
+  const handleSubmit = () => {
+    form.validateFields().then(values => {
+      const payload = {
+        title: values.title,
+        description: values.description || '',
+        date: values.date.format('YYYY-MM-DD'),
+        start_time: values.start_time ? values.start_time.format('HH:mm:ss') : '',
+        end_time: values.end_time ? values.end_time.format('HH:mm:ss') : '',
+      }
+      const url = editingId ? `${API}/events/${editingId}` : `${API}/events`
+      fetch(url, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(() => {
         fetchEvents()
-        setSelectedEvent(null)
+        setFormOpen(false)
+        setEditingId(null)
+        form.resetFields()
       })
+    })
+  }
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: `刪除「${selectedEvent.title}」？`,
+      okText: '刪除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        fetch(`${API}/events/${selectedEvent.id}`, { method: 'DELETE' })
+          .then(() => {
+            fetchEvents()
+            setDetailOpen(false)
+          })
+      },
+    })
   }
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>MIT Project 日曆</h1>
-      <button onClick={() => showForm ? closeForm() : openCreateForm({ start: new Date() })} style={{ marginBottom: '1rem' }}>
-        {showForm ? '取消' : '+ 新增事件'}
-      </button>
-
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input placeholder="標題" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-          <input placeholder="描述" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <input type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-          <input type="time" value={form.start_time} onChange={e => setForm({ ...form, start_time: e.target.value })} />
-          <input type="time" value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} />
-          <button type="submit">{editingId ? '儲存' : '新增'}</button>
-          <button type="button" onClick={closeForm}>取消</button>
-        </form>
-      )}
-
-      {selectedEvent && (
-        <div
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={() => setSelectedEvent(null)}
-        >
-          <div
-            style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', minWidth: '300px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0 }}>{selectedEvent.title}</h2>
-            {selectedEvent.description && <p>{selectedEvent.description}</p>}
-            <p style={{ color: '#666', fontSize: '0.9rem' }}>
-              {selectedEvent.date}
-              {selectedEvent.start_time && ` ${selectedEvent.start_time}`}
-              {selectedEvent.end_time && ` – ${selectedEvent.end_time}`}
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button onClick={() => openEditForm(selectedEvent)}>編輯</button>
-              <button onClick={() => handleDelete(selectedEvent)} style={{ color: 'red' }}>刪除</button>
-              <button onClick={() => setSelectedEvent(null)}>關閉</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h1 style={{ margin: 0 }}>MIT Project 日曆</h1>
+        <Button type="primary" onClick={() => openCreate({ start: new Date() })}>+ 新增事件</Button>
+      </div>
 
       <Calendar
         localizer={localizer}
@@ -132,11 +114,60 @@ function App() {
         endAccessor="end"
         style={{ height: 600 }}
         selectable
-        onSelectSlot={openCreateForm}
-        onSelectEvent={setSelectedEvent}
+        onSelectSlot={openCreate}
+        onSelectEvent={e => { setSelectedEvent(e); setDetailOpen(true) }}
       />
+
+      {/* 新增 / 編輯 Modal */}
+      <Modal
+        title={editingId ? '編輯事件' : '新增事件'}
+        open={formOpen}
+        onOk={handleSubmit}
+        onCancel={() => { setFormOpen(false); setEditingId(null); form.resetFields() }}
+        okText={editingId ? '儲存' : '新增'}
+        cancelText="取消"
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item name="title" label="標題" rules={[{ required: true, message: '請輸入標題' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input />
+          </Form.Item>
+          <Form.Item name="date" label="日期" rules={[{ required: true, message: '請選擇日期' }]}>
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Space>
+            <Form.Item name="start_time" label="開始時間">
+              <TimePicker format="HH:mm" />
+            </Form.Item>
+            <Form.Item name="end_time" label="結束時間">
+              <TimePicker format="HH:mm" />
+            </Form.Item>
+          </Space>
+        </Form>
+      </Modal>
+
+      {/* 事件詳情 Modal */}
+      <Modal
+        title={selectedEvent?.title}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={
+          <Space>
+            <Button onClick={openEdit}>編輯</Button>
+            <Button danger onClick={handleDelete}>刪除</Button>
+            <Button onClick={() => setDetailOpen(false)}>關閉</Button>
+          </Space>
+        }
+      >
+        {selectedEvent?.description && <p>{selectedEvent.description}</p>}
+        <p style={{ color: '#888' }}>
+          {selectedEvent?.date}
+          {selectedEvent?.start_time && ` ${selectedEvent.start_time}`}
+          {selectedEvent?.end_time && ` – ${selectedEvent.end_time}`}
+        </p>
+      </Modal>
     </div>
   )
 }
-
-export default App

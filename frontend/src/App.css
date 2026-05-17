@@ -1,3 +1,31 @@
+/* 修正 antd 與 react-big-calendar CSS 衝突 */
+.rbc-off-range {
+  color: #b0b0b0;
+}
+
+.rbc-off-range-bg {
+  background: #f8f8f8;
+}
+
+.rbc-toolbar button {
+  color: #333;
+  background: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.rbc-toolbar button:hover {
+  background: #f0f0f0;
+}
+
+.rbc-toolbar button.rbc-active {
+  background: #1677ff;
+  color: white;
+  border-color: #1677ff;
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;
