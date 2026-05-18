@@ -164,8 +164,7 @@ db-data Volume（資料持久化）
 - 每個服務（FastAPI、前端）各自連結 repo 的不同 Dockerfile
 
 ### 下次待辦
-- [ ] Railway 加入 PostgreSQL 服務並串接 FastAPI
-- [ ] Railway 加入前端服務（frontend/Dockerfile）
+- [ ] 確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）
 - [ ] 拿到前端網址後把 CORS 改成真實網址
 - [ ] 測試完整線上流程
 
