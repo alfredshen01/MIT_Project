@@ -102,9 +102,72 @@ mit-db-data Volume（資料持久化）
 - Ubuntu 安裝時預設只分配一半空間給根目錄，剩下在 VG 中未分配
 - `vgdisplay` 查看 VG 可用空間，`lvextend` 擴充，`resize2fs` 通知檔案系統
 
+### 完成項目（續）
+- 撰寫 `docker-compose.yml`，整合 db、api、web 三個服務
+- 撰寫 `frontend/Dockerfile`（multi-stage build：node build + nginx 提供靜態檔案）
+- 建立 `initdb/01_create_tables.sql`，讓 PostgreSQL 第一次啟動時自動建立 events 資料表
+- 在 Railway 完成初步部署，FastAPI 成功上線
+
+### 遇到的問題與解決（續）
+
+**問題 6：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
+- 原因：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
+- 解決：
+  1. `main.py` CORS 改為 `allow_origins=["*"]`
+  2. 建立 `initdb/01_create_tables.sql` 讓資料庫自動初始化
+  3. `docker compose down -v` 刪除舊 Volume 後重新啟動
+
+![Compose CORS 500 錯誤](log-picture/20260518/compose-cors-500-error.png)
+
+**問題 7：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
+- 原因：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
+- 解決：在 VS Code Ports 分頁手動加入 port 80，VS Code 自動分配 Mac 上的隨機 port（如 :62178）對應
+
+**問題 8：Railway 只部署 FastAPI，沒有跑完整 Compose**
+- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
+- 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
+
+### 學到的概念（續）
+
+**docker-compose.yml 的角色**
+- 把手動建立網路、Volume、容器的指令整合成一個 YAML 檔案
+- `docker compose up --build` 一鍵啟動，`docker compose down -v` 連 Volume 一起刪除
+- `depends_on` 控制啟動順序（db 先啟動，api 再啟動，web 最後）
+- `initdb/` 掛進 `/docker-entrypoint-initdb.d/`，只有 Volume 是空的時候才執行（第一次啟動）
+
+**Docker build 快取**
+- Image 分層儲存，每一層都有快取
+- 只有改變的層和之後的層才會重新 build，沒變的層直接用快取
+- Image 存在硬碟上，重開機不會消失，只有程式碼或 Dockerfile 改了才需要重新 build
+
+**nginx 與前端部署**
+- 開發時用 Vite dev server（有 HMR）
+- 部署時用 `npm run build` 產出靜態檔案，再用 nginx 提供給瀏覽器
+- multi-stage build：第一階段 node build，第二階段只保留 nginx + dist，Image 更小
+
+**現在的完整 Compose 架構**
+```
+Mac 瀏覽器
+    ↓ :80
+nginx 容器（前端靜態檔案）
+    ↓ 瀏覽器直接打
+FastAPI 容器（:8000，對外暴露）
+    ↓
+PostgreSQL 容器（:5432，只在 app-network 內部）
+    ↓
+db-data Volume（資料持久化）
+```
+
+**Railway 部署架構**
+- Railway 不跑 docker-compose.yml，改用平台自己的方式管理服務
+- PostgreSQL 由 Railway 提供，不需要自己設定
+- 每個服務（FastAPI、前端）各自連結 repo 的不同 Dockerfile
+
 ### 下次待辦
-- [ ] 撰寫 docker-compose.yml，讓別人一鍵啟動整個專案
-- [ ] 部署至雲端平台（Render / Railway）
+- [ ] Railway 加入 PostgreSQL 服務並串接 FastAPI
+- [ ] Railway 加入前端服務（frontend/Dockerfile）
+- [ ] 拿到前端網址後把 CORS 改成真實網址
+- [ ] 測試完整線上流程
 
 ### 學到的概念
 
