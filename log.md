@@ -238,9 +238,9 @@ mit-db-data Volume（資料持久化）
 - CORS：前後端跨 port 呼叫需要在後端設定允許來源
 
 ### 下次待辦
-- [ ] 前端加入修改事件（Update）介面
-- [ ] Docker 容器化（FastAPI + PostgreSQL）
-- [ ] Docker 自訂網路連接容器
-- [ ] 繼續開發日曆功能
+- [x] 前端加入修改事件（Update）介面
+- [x] Docker 容器化（FastAPI + PostgreSQL）
+- [x] Docker 自訂網路連接容器
+- [x] 繼續開發日曆功能
 
 ---
