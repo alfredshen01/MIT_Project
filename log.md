@@ -4,6 +4,25 @@
 
 ## 2026-05-18
 
+### 遇到的問題與解決
+
+**問題：同時出現 port :5173 和 :5174，:5174 是空的（CORS 問題）**
+
+![VS Code 同時出現四個 port](log-picture/20260518/ports.png)
+
+- 起因：Claude 之前用背景指令（`&`）啟動了 Vite，`pkill` 沒有完全停掉，:5173 仍被佔用
+- 當自己再啟動一次 Vite，偵測到 :5173 被佔用，自動改用 :5174
+- :5174 是空的，原本以為是後端沒開或資料庫限制，但其實都不是
+- **真正原因：CORS**，後端 `main.py` 的白名單只有 `"http://localhost:5173"`，來自 :5174 的請求被擋掉，fetch 失敗，畫面空白
+
+| :5173（CORS 通過，有資料） | :5174（CORS 被擋，空白） |
+|---|---|
+| ![cors-pass](log-picture/20260518/cors-pass.png) | ![cors-block](log-picture/20260518/cors-block.png) |
+
+- 這正是之前學到的概念的實際體驗：origin 不在白名單就拿不到資料，瀏覽器 Console 會出現 CORS 錯誤
+- 解決：`pkill -f vite` 殺掉舊實例，再重新 `npm run dev` 回到 :5173；或將後端 `allow_origins` 加入 `:5174`
+- 補充：開發時可改成 `"*"` 允許所有來源，但上線時必須改回真實網址
+
 ### 學到的概念
 
 **Claude Code 的 shell 限制**
