@@ -8,12 +8,35 @@ import './App.css'
 const localizer = dayjsLocalizer(dayjs)
 const API = 'http://localhost:8000'
 
+const VIEW_LABELS = { day: '日', week: '週', month: '月', agenda: '議程' }
+
+function CustomToolbar({ label, onNavigate, onView, view }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <Space>
+        <Button onClick={() => onNavigate('PREV')}>‹</Button>
+        <Button onClick={() => onNavigate('TODAY')}>今天</Button>
+        <Button onClick={() => onNavigate('NEXT')}>›</Button>
+      </Space>
+      <span style={{ fontWeight: 500, fontSize: '1rem' }}>{label}</span>
+      <Space>
+        {['day', 'week', 'month', 'agenda'].map(v => (
+          <Button key={v} type={view === v ? 'primary' : 'default'} onClick={() => onView(v)}>
+            {VIEW_LABELS[v]}
+          </Button>
+        ))}
+      </Space>
+    </div>
+  )
+}
+
 export default function App() {
   const [events, setEvents] = useState([])
   const [formOpen, setFormOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [currentView, setCurrentView] = useState('month')
   const [form] = Form.useForm()
 
   const fetchEvents = () => {
@@ -114,6 +137,9 @@ export default function App() {
         endAccessor="end"
         style={{ height: 600 }}
         selectable
+        view={currentView}
+        onView={setCurrentView}
+        components={{ toolbar: CustomToolbar }}
         onSelectSlot={openCreate}
         onSelectEvent={e => { setSelectedEvent(e); setDetailOpen(true) }}
       />

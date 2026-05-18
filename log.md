@@ -2,6 +2,70 @@
 
 ---
 
+## 2026-05-17
+
+### 完成項目
+- 完成前端 CRUD：新增編輯事件 modal、點月曆格子自動帶入日期、串接後端 PUT API
+- 套用 Ant Design（antd）UI 元件庫，改用 Modal、Form、Button、DatePicker、TimePicker
+- 修正 CSS 衝突問題（詳見下方）
+- 新增自訂 toolbar，檢視按鈕改為日→週→月→議程順序
+- 將套件管理從 `requirements.txt` 遷移至 `uv init`（pyproject.toml + uv.lock）
+
+### 學到的概念
+
+**Port 與三層架構**
+- 前端 :5173、後端 :8000 需要對外暴露，出現在 VS Code port 列表
+- PostgreSQL :5432 只在 VM 內部被 FastAPI 連線，不需要對外，不會出現在列表
+- VS Code 會自己開隨機 port（如 :39619）供內部擴充功能使用，與專案無關
+
+**npm 套件管理**
+- `package.json` = 套件清單（對應 Python 的 `pyproject.toml`）
+- `package-lock.json` = 鎖定版本（對應 `uv.lock`）
+- `npm install <套件>` = 安裝並自動更新 `package.json`
+- `node_modules/` = 虛擬環境（對應 `.venv/`）
+- `npm install` 執行時不會影響正在跑的 dev server，Vite 會自動偵測新套件
+
+**uv 套件管理遷移**
+- `uv init` 建立 `pyproject.toml` 與 `.python-version`
+- `uv add <套件>` 自動更新 `pyproject.toml` 並產生 `uv.lock`
+- 比 `requirements.txt` 方便：不用手動維護，有鎖定檔確保版本一致
+- 遷移步驟：`uv init` → `uv add fastapi uvicorn sqlalchemy psycopg2-binary`
+
+**react-big-calendar vs antd Calendar**
+- antd 的 `Calendar` 只是選日期用的元件，無法顯示多個事件、無法切換週/日/議程
+- react-big-calendar 專為行事曆 app 設計，支援事件顯示、多種檢視、點擊互動
+- 兩者並用：antd 負責按鈕/modal/表單，react-big-calendar 負責月曆本體
+
+**React 受控元件（Controlled Component）**
+- react-big-calendar 預設自己管理 view 狀態（uncontrolled）
+- 換成自訂 toolbar 後，需要自己用 `useState` 管理 `currentView`
+- 傳入 `view={currentView}` 和 `onView={setCurrentView}` 才能讓按鈕切換生效
+- 原則：自訂子元件替換預設後，原本內部的狀態需要由外部接管
+
+### 遇到的問題與解決
+
+**問題 1：非當月日期變白色、導覽按鈕消失**
+- 原因 A：Vite 建立專案時自動產生的 `index.css` 含有 `color-scheme: light dark`，系統深色模式下會把頁面背景變黑，蓋掉月曆顏色
+- 原因 B：`index.css` 的 `#root { text-align: center }` 影響月曆排版
+- 解決：清除 `index.css` 的模板內容，只保留 `body { margin: 0 }`
+- 補充：安裝 antd 後也會有 CSS 衝突，在 `App.css` 加 override 修正 `.rbc-off-range` 和 toolbar 按鈕樣式
+
+**問題 2：自訂 toolbar 按鈕點下去沒反應**
+- 原因：月曆的 view 狀態沒有被外部控制，換成自訂 toolbar 後按鈕觸發的 `onView` 無法更新畫面
+- 解決：加入 `const [currentView, setCurrentView] = useState('month')`，並傳給 Calendar
+
+**問題 3：`git push` 從我的 shell 執行失敗**
+- 原因：我的 shell 是非互動模式，沒有 TTY，git 無法提示輸入帳號密碼
+- VS Code 的終端機有存取 credential cache 的權限，所以從終端機 push 正常
+- 結論：git push 需要由使用者自己在終端機執行
+
+### 下次待辦
+- [ ] Docker 容器化（FastAPI + PostgreSQL）
+- [ ] Docker 自訂網路連接容器
+- [ ] 部署至雲端平台（Render / Railway）
+
+---
+
 ## 2026-05-16
 
 ### 學到的概念
