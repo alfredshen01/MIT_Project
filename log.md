@@ -23,6 +23,89 @@
 - 解決：`pkill -f vite` 殺掉舊實例，再重新 `npm run dev` 回到 :5173；或將後端 `allow_origins` 加入 `:5174`
 - 補充：開發時可改成 `"*"` 允許所有來源，但上線時必須改回真實網址
 
+### 完成項目
+- 手動建立 Docker 自訂網路、Volume、PostgreSQL 容器、FastAPI 容器
+- 修改 `main.py` 讓 `DATABASE_URL` 從環境變數讀取，開發與容器環境共用同一份程式碼
+- 建立 `Dockerfile`，用 `uv` 安裝依賴並啟動 FastAPI
+- 擴充 LVM，將根目錄從 23GB 擴充至 46GB
+- 確認容器間網路連線正常，前端可透過容器化後端新增事件並持久化至 Volume
+
+![容器資料庫驗證](log-picture/20260518/Database-check.png)
+
+### 遇到的問題與解決
+
+**問題 1：Docker 指令 permission denied**
+- 原因：使用者不在 `docker` 群組，無法存取 `/var/run/docker.sock`
+- 解決：`sudo usermod -aG docker $USER` 加入群組；短期用 `sudo` 繞過
+
+**問題 2：PostgreSQL 容器啟動失敗（版本格式不相容）**
+- 原因：`mit-db-data` Volume 是 3 週前 postgres:15 初始化的格式，現在的 `postgres:latest` 已升級到 v18，格式不相容，啟動時報格式錯誤
+- 解決：改用 `postgres:15` 明確指定版本，與 Volume 格式一致；同時學到正式環境不應使用 `latest` tag
+
+![postgres version 問題](log-picture/20260518/docker-image-version.png)
+
+**問題 3：磁碟空間不足（根目錄 100% 滿）**
+- 原因：Ubuntu 安裝時 LVM 只分配 23GB 給根目錄，剩下 ~24GB 在 Volume Group 中未分配；加上 Docker Image 佔用大量空間（postgres:latest 671MB、postgres:15 654MB、mit_test-web 296MB）
+- 解決：
+  1. `sudo docker system prune -a` 清除未使用的 Image 與快取，釋放 350MB
+  2. `sudo lvextend -l +100%FREE /dev/mapper/ubuntu--vg-ubuntu--lv` 擴充 LV
+  3. `sudo resize2fs /dev/mapper/ubuntu--vg-ubuntu--lv` 通知檔案系統變大
+  4. 根目錄擴充至 46GB，可用空間 24GB
+
+| 空間不足錯誤 | 擴充後恢復 |
+|---|---|
+| ![vm-nospaceleft](log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](log-picture/20260518/vm-nospace-solve.png) |
+
+**問題 4：`docker system prune -a` 把自訂網路和容器一起刪掉**
+- 原因：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
+- 解決：重新建立網路和容器；Volume `mit-db-data` 不受影響，資料保留
+- 學到：`docker system prune -a` 是高風險指令，執行前要確認哪些資源會被刪除
+
+**問題 5：容器狀態 `Created` 但沒有啟動（網路找不到）**
+- 原因：`my-network` 被 prune 刪除後容器嘗試啟動找不到網路，一直停在 `Created`
+- 解決：重建網路後 `docker start mit-db` 成功啟動
+
+### 學到的概念
+
+**Docker 三大核心元素**
+- **Image**：唯讀模板，由 Dockerfile build 產生或從 Docker Hub 下載
+- **Container**：Image 的執行實例，可隨時刪除重建；建立參數（網路、port、環境變數）一旦設定不能修改，要改就刪掉重建
+- **Volume**：獨立於容器生命週期的持久化儲存；容器刪掉資料不消失
+
+**Docker 網路**
+- 預設 `bridge` 網路：容器只能用 IP 互訪，不能用名稱（沒有 DNS）
+- 自訂網路：Docker 內建 DNS server（`127.0.0.11`），容器名稱自動解析成 IP，可以用名稱互訪
+- DNS 是 1983 年就有的技術，Docker 只是在自訂網路才啟用它，預設 bridge 為了向下相容保持舊行為
+- 指令：`docker network create <name>`、`docker network ls`、`docker network rm <name>`
+
+**容器化後的架構**
+```
+前端 React（本地 :5173，開發時不包進 Docker）
+      ↓
+mit-api 容器（FastAPI :8000，對外暴露）
+      ↓
+mit-db 容器（PostgreSQL :5432，只在 my-network 內部）
+      ↓
+mit-db-data Volume（資料持久化）
+```
+
+**環境變數控制連線設定**
+- `main.py` 改用 `os.getenv("DATABASE_URL", "postgresql://...@localhost...")` 
+- 本地開發不傳環境變數，走 fallback 連 localhost
+- 容器啟動時用 `-e DATABASE_URL=...@mit-db:...` 覆蓋，連容器名稱
+
+**為什麼不用 latest tag**
+- `postgres:latest` 3 週前下載是 v15，現在更新成 v18，Volume 格式不相容導致容器無法啟動
+- 正式環境要明確指定版本號（如 `postgres:15`），確保每次跑的都是同一版
+
+**LVM（邏輯卷管理）**
+- Ubuntu 安裝時預設只分配一半空間給根目錄，剩下在 VG 中未分配
+- `vgdisplay` 查看 VG 可用空間，`lvextend` 擴充，`resize2fs` 通知檔案系統
+
+### 下次待辦
+- [ ] 撰寫 docker-compose.yml，讓別人一鍵啟動整個專案
+- [ ] 部署至雲端平台（Render / Railway）
+
 ### 學到的概念
 
 **Claude Code 的 shell 限制**
@@ -92,8 +175,9 @@
 - 結論：git push 需要由使用者自己在終端機執行
 
 ### 下次待辦
-- [ ] Docker 容器化（FastAPI + PostgreSQL）
-- [ ] Docker 自訂網路連接容器
+- [x] Docker 容器化（FastAPI + PostgreSQL）
+- [x] Docker 自訂網路連接容器
+- [ ] 撰寫 docker-compose.yml
 - [ ] 部署至雲端平台（Render / Railway）
 
 ---

@@ -1,10 +1,11 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from pydantic import BaseModel
 from typing import Optional
 
-DATABASE_URL = "postgresql://postgres:pwd@localhost:5432/mit_project"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:pwd@localhost:5432/mit_project")
 
 engine = create_engine(DATABASE_URL)
 
