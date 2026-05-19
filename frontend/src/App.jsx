@@ -6,7 +6,7 @@ import { Button, Modal, Form, Input, TimePicker, DatePicker, Space } from 'antd'
 import './App.css'
 
 const localizer = dayjsLocalizer(dayjs)
-const API = 'http://137.184.65.172:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const VIEW_LABELS = { day: '日', week: '週', month: '月', agenda: '議程' }
 

@@ -2,6 +2,66 @@
 
 ---
 
+## 2026-05-19
+
+### 完成項目
+- 在 DigitalOcean 建立 Droplet（Ubuntu 24.04，$6/mo，1GB RAM）
+- 在 Mac 生成 SSH key，設定 Droplet 連線
+- 在 Droplet 安裝 Docker，clone repo，`docker compose up -d --build` 成功啟動三服務
+- 修改前端 API 網址指向 Droplet IP，重新部署後確認新增事件功能正常
+- 專案成功上線：`http://137.184.65.172`
+
+### 遇到的問題與解決
+
+**問題 1：Railway 只部署 FastAPI，沒有跑完整 Compose**
+- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不讀 `docker-compose.yml`；Railway 是「一個服務對應一個 repo」的邏輯
+- 解決：改用 DigitalOcean Droplet（VPS），自己管伺服器，直接跑 `docker compose up`
+- 學到：`docker-compose.yml` 適合本機開發或 VPS 部署，Railway/Render 等 PaaS 有自己的管理方式
+
+**問題 2：Droplet git clone private repo 失敗（credential 問題）**
+- 原因：VS Code 的 git credential helper 干擾，HTTPS clone 需要 PAT，但用 Google 登入的 GitHub 帳號沒有密碼
+- 解決：在 Droplet 生成新的 SSH key，加到 GitHub SSH keys，改用 SSH clone（`git clone git@github.com:...`）
+
+**問題 3：Droplet build 時記憶體不足，Image 下載失敗**
+- 原因：1GB RAM 同時 build 兩個大 Image（node:22-slim 50MB + python:3.12-slim 12MB），記憶體撐不住，出現 TLS handshake timeout 和 context deadline exceeded
+- 解決：加 1GB swap 空間讓系統有更多可用記憶體
+  ```bash
+  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  ```
+
+**問題 4：前端打開有資料，但 Droplet 資料庫是空的**
+- 原因：前端程式碼寫死 `http://localhost:8000`，瀏覽器的 JS 打的是 Mac 本機的 FastAPI，不是 Droplet 的
+- 解決：把 `App.jsx` 的 API 網址改成 `http://137.184.65.172:8000`，commit + push，Droplet 重新 build
+
+### 學到的概念
+
+**VPS vs PaaS**
+- VPS（如 DigitalOcean Droplet）：你拿到一台 Linux 主機，自己裝軟體、自己跑 docker-compose，彈性大、學到真實操作
+- PaaS（如 Railway、Render）：平台幫你管伺服器，你只推程式碼，但有自己的部署邏輯，不一定支援 docker-compose
+
+**Swap 空間**
+- 把硬碟一部分當備用記憶體，RAM 不夠時系統把暫時用不到的資料移到 swap
+- 速度比 RAM 慢，但可以避免程式因記憶體不足被 kill
+- `fallocate` 建立檔案、`mkswap` 格式化、`swapon` 啟用
+
+**前端 API 網址的問題**
+- 前端 JS 是在使用者的瀏覽器上執行的，`localhost` 是使用者的電腦，不是伺服器
+- 部署時 API 網址要改成伺服器的公開 IP 或網域
+- 正確做法：用環境變數控制，開發時用 localhost，部署時用真實網址
+
+**部署後的手動更新流程**
+```
+VM 改 code → git push → Droplet: git pull && docker compose up -d --build
+```
+
+### 下次待辦
+- [ ] 設定防火牆，只開放 port 80 和 8000
+- [ ] 用環境變數控制前端 API 網址，不寫死 IP
+- [ ] 設定 GitHub Actions CI/CD，push 自動部署
+- [ ] 申請網域或使用 GitHub Student Pack 提供的網域
+
+---
+
 ## 2026-05-18
 
 ### 遇到的問題與解決
