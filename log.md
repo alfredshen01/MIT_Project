@@ -253,9 +253,9 @@ db-data Volume（資料持久化）
 - 每個服務（FastAPI、前端）各自連結 repo 的不同 Dockerfile
 
 ### 下次待辦
-- [x] ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
+- ✅ ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
 - [ ] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）
-- [x] 測試完整線上流程
+- ✅ 測試完整線上流程
 
 ### 學到的概念
 
@@ -326,10 +326,10 @@ db-data Volume（資料持久化）
 - 結論：git push 需要由使用者自己在終端機執行
 
 ### 下次待辦
-- [x] Docker 容器化（FastAPI + PostgreSQL）
-- [x] Docker 自訂網路連接容器
-- [x] 撰寫 docker-compose.yml
-- [x] ~~部署至雲端平台（Render / Railway）~~ → 改用 DigitalOcean Droplet
+- ✅ Docker 容器化（FastAPI + PostgreSQL）
+- ✅ Docker 自訂網路連接容器
+- ✅ 撰寫 docker-compose.yml
+- ✅ ~~部署至雲端平台（Render / Railway）~~ → 改用 DigitalOcean Droplet
 
 ---
 
@@ -389,9 +389,9 @@ db-data Volume（資料持久化）
 - CORS：前後端跨 port 呼叫需要在後端設定允許來源
 
 ### 下次待辦
-- [x] 前端加入修改事件（Update）介面
-- [x] Docker 容器化（FastAPI + PostgreSQL）
-- [x] Docker 自訂網路連接容器
-- [x] 繼續開發日曆功能
+- ✅ 前端加入修改事件（Update）介面
+- ✅ Docker 容器化（FastAPI + PostgreSQL）
+- ✅ Docker 自訂網路連接容器
+- ✅ 繼續開發日曆功能
 
 ---
