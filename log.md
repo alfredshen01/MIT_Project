@@ -12,6 +12,9 @@
 - 專案成功上線：`http://137.184.65.172`
 - 用 Vite 環境變數（`VITE_API_URL`）取代寫死的 IP，開發與部署自動切換
 - 建立 GitHub Actions `deploy.yml`，push 到 main 自動 SSH 進 Droplet 部署
+- 將 GitHub repo 改為 public，讓 log.md 截圖能在 HackMD 正常顯示
+- 將 log.md 所有圖片路徑改為 GitHub raw URL 格式
+- 建立 `/update-log` Claude Code skill，自動根據對話內容更新學習日誌
 
 ### 遇到的問題與解決
 
@@ -59,6 +62,16 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 ```
 
 ### 學到的概念（續）
+
+**GitHub Raw URL 與 HackMD 圖片顯示**
+- HackMD 顯示圖片需要圖片 URL 可公開存取，private repo 的路徑無法被外部載入
+- GitHub raw URL 格式：`https://raw.githubusercontent.com/<user>/<repo>/<branch>/<path>`
+- 只要 repo 是 public，raw URL 就可以直接被 HackMD 等外部網站載入
+
+**Claude Code Skill**
+- 在 `~/.claude/commands/` 建立 `.md` 檔，可定義自訂 slash command
+- 檔名就是指令名稱（如 `update-log.md` → `/update-log`）
+- Skill 的 Markdown 內容成為 Claude 執行該指令時遵循的規則
 
 **GitHub Actions CI/CD**
 - 在 `.github/workflows/deploy.yml` 定義自動化流程
@@ -240,9 +253,9 @@ db-data Volume（資料持久化）
 - 每個服務（FastAPI、前端）各自連結 repo 的不同 Dockerfile
 
 ### 下次待辦
-- [ ] 確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）
-- [ ] 拿到前端網址後把 CORS 改成真實網址
-- [ ] 測試完整線上流程
+- [x] ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
+- [ ] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）
+- [x] 測試完整線上流程
 
 ### 學到的概念
 
@@ -315,8 +328,8 @@ db-data Volume（資料持久化）
 ### 下次待辦
 - [x] Docker 容器化（FastAPI + PostgreSQL）
 - [x] Docker 自訂網路連接容器
-- [ ] 撰寫 docker-compose.yml
-- [ ] 部署至雲端平台（Render / Railway）
+- [x] 撰寫 docker-compose.yml
+- [x] ~~部署至雲端平台（Render / Railway）~~ → 改用 DigitalOcean Droplet
 
 ---
 
