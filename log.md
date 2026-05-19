@@ -61,8 +61,7 @@
 VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 ```
 
-### 學到的概念（續）
-
+### 學到的概念
 **GitHub Raw URL 與 HackMD 圖片顯示**
 - HackMD 顯示圖片需要圖片 URL 可公開存取，private repo 的路徑無法被外部載入
 - GitHub raw URL 格式：`https://raw.githubusercontent.com/<user>/<repo>/<branch>/<path>`
@@ -191,14 +190,12 @@ mit-db-data Volume（資料持久化）
 - Ubuntu 安裝時預設只分配一半空間給根目錄，剩下在 VG 中未分配
 - `vgdisplay` 查看 VG 可用空間，`lvextend` 擴充，`resize2fs` 通知檔案系統
 
-### 完成項目（續）
-- 撰寫 `docker-compose.yml`，整合 db、api、web 三個服務
+### 完成項目- 撰寫 `docker-compose.yml`，整合 db、api、web 三個服務
 - 撰寫 `frontend/Dockerfile`（multi-stage build：node build + nginx 提供靜態檔案）
 - 建立 `initdb/01_create_tables.sql`，讓 PostgreSQL 第一次啟動時自動建立 events 資料表
 - 在 Railway 完成初步部署，FastAPI 成功上線
 
-### 遇到的問題與解決（續）
-
+### 遇到的問題與解決
 **問題 6：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
 - 原因：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
 - 解決：
@@ -216,8 +213,7 @@ mit-db-data Volume（資料持久化）
 - 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
 - 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
 
-### 學到的概念（續）
-
+### 學到的概念
 **docker-compose.yml 的角色**
 - 把手動建立網路、Volume、容器的指令整合成一個 YAML 檔案
 - `docker compose up --build` 一鍵啟動，`docker compose down -v` 連 Volume 一起刪除
