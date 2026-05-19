@@ -53,15 +53,15 @@ export default function App() {
     setToken(null)
   }
 
-  if (!token) return <Login onLogin={handleLogin} />
-
-  const fetchEvents = () => {
-    fetch(`${API}/events`, { headers: authHeaders })
+  const fetchEvents = (currentToken) => {
+    const headers = { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' }
+    fetch(`${API}/events`, { headers })
       .then(res => {
         if (res.status === 401) { handleLogout(); return [] }
         return res.json()
       })
       .then(data => {
+        if (!data) return
         setEvents(data.map(e => ({
           id: e.id,
           title: e.title,
@@ -75,7 +75,11 @@ export default function App() {
       })
   }
 
-  useEffect(() => { fetchEvents() }, [])
+  useEffect(() => {
+    if (token) fetchEvents(token)
+  }, [token])
+
+  if (!token) return <Login onLogin={handleLogin} />
 
   const openCreate = (slotInfo) => {
     setEditingId(null)
