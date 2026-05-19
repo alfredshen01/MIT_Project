@@ -5,8 +5,8 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 
@@ -16,7 +16,6 @@ ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 7
 
 engine = create_engine(DATABASE_URL)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer = HTTPBearer()
 
 app = FastAPI()
@@ -74,7 +73,7 @@ def read_root():
 
 @app.post("/register", status_code=201)
 def register(body: UserRegister):
-    hashed = pwd_context.hash(body.password)
+    hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     with engine.connect() as conn:
         existing = conn.execute(text("SELECT id FROM users WHERE email=:email"), {"email": body.email}).first()
         if existing:
@@ -91,7 +90,7 @@ def register(body: UserRegister):
 def login(body: UserLogin):
     with engine.connect() as conn:
         row = conn.execute(text("SELECT id, hashed_password FROM users WHERE email=:email"), {"email": body.email}).first()
-    if not row or not pwd_context.verify(body.password, row.hashed_password):
+    if not row or not bcrypt.checkpw(body.password.encode(), row.hashed_password.encode()):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
     return {"token": create_token(row.id)}
 
