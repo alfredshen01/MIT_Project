@@ -31,7 +31,7 @@
   fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   ```
 
-![記憶體不足錯誤](log-picture/20260519/Memory-lacked.png)
+![記憶體不足錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/Memory-lacked.png)
 
 **問題 4：前端打開有資料，但 Droplet 資料庫是空的**
 - 原因：前端程式碼寫死 `http://localhost:8000`，瀏覽器的 JS 打的是 Mac 本機的 FastAPI，不是 Droplet 的
@@ -84,7 +84,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 
 **問題：同時出現 port :5173 和 :5174，:5174 是空的（CORS 問題）**
 
-![VS Code 同時出現四個 port](log-picture/20260518/ports.png)
+![VS Code 同時出現四個 port](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/ports.png)
 
 - 起因：Claude 之前用背景指令（`&`）啟動了 Vite，`pkill` 沒有完全停掉，:5173 仍被佔用
 - 當自己再啟動一次 Vite，偵測到 :5173 被佔用，自動改用 :5174
@@ -93,7 +93,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 
 | :5173（CORS 通過，有資料） | :5174（CORS 被擋，空白） |
 |---|---|
-| ![cors-pass](log-picture/20260518/cors-pass.png) | ![cors-block](log-picture/20260518/cors-block.png) |
+| ![cors-pass](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/cors-pass.png) | ![cors-block](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/cors-block.png) |
 
 - 這正是之前學到的概念的實際體驗：origin 不在白名單就拿不到資料，瀏覽器 Console 會出現 CORS 錯誤
 - 解決：`pkill -f vite` 殺掉舊實例，再重新 `npm run dev` 回到 :5173；或將後端 `allow_origins` 加入 `:5174`
@@ -106,7 +106,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 擴充 LVM，將根目錄從 23GB 擴充至 46GB
 - 確認容器間網路連線正常，前端可透過容器化後端新增事件並持久化至 Volume
 
-![容器資料庫驗證](log-picture/20260518/Database-check.png)
+![容器資料庫驗證](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/Database-check.png)
 
 ### 遇到的問題與解決
 
@@ -118,7 +118,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 原因：`mit-db-data` Volume 是 3 週前 postgres:15 初始化的格式，現在的 `postgres:latest` 已升級到 v18，格式不相容，啟動時報格式錯誤
 - 解決：改用 `postgres:15` 明確指定版本，與 Volume 格式一致；同時學到正式環境不應使用 `latest` tag
 
-![postgres version 問題](log-picture/20260518/docker-image-version.png)
+![postgres version 問題](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/docker-image-version.png)
 
 **問題 3：磁碟空間不足（根目錄 100% 滿）**
 - 原因：Ubuntu 安裝時 LVM 只分配 23GB 給根目錄，剩下 ~24GB 在 Volume Group 中未分配；加上 Docker Image 佔用大量空間（postgres:latest 671MB、postgres:15 654MB、mit_test-web 296MB）
@@ -130,7 +130,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 
 | 空間不足錯誤 | 擴充後恢復 |
 |---|---|
-| ![vm-nospaceleft](log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](log-picture/20260518/vm-nospace-solve.png) |
+| ![vm-nospaceleft](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospace-solve.png) |
 
 **問題 4：`docker system prune -a` 把自訂網路和容器一起刪掉**
 - 原因：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
@@ -193,7 +193,7 @@ mit-db-data Volume（資料持久化）
   2. 建立 `initdb/01_create_tables.sql` 讓資料庫自動初始化
   3. `docker compose down -v` 刪除舊 Volume 後重新啟動
 
-![Compose CORS 500 錯誤](log-picture/20260518/compose-cors-500-error.png)
+![Compose CORS 500 錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/compose-cors-500-error.png)
 
 **問題 7：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
 - 原因：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
