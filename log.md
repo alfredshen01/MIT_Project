@@ -2,6 +2,69 @@
 
 ---
 
+## 2026-05-20
+
+### 完成項目
+- 將 CORS `allow_origins` 從寫死的 `"*"` 改為環境變數 `FRONTEND_ORIGIN`，docker-compose.yml 注入 Droplet IP，本地開發自動 fallback 到 localhost:5173
+- 建立 .gitignore，排除 `__pycache__/` 和 `.pyc` 檔案
+- 設定 Alembic migration 系統，建立三個版本：`create_events_table`、`create_users_table`、`add_user_id_to_events`
+- 實作後端使用者認證：`POST /register`（bcrypt hash 密碼）、`POST /login`（回傳 JWT token）
+- 所有 events 端點加上 JWT middleware，只能存取自己的資料
+- 新增前端登入/註冊頁面（`Login.jsx`），登入後儲存 token 到 localStorage
+- 成功部署認證功能到 Droplet，第一個使用者建立成功
+
+![第一個使用者建立成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/first-user-create.png)
+
+### 遇到的問題與解決
+
+**問題 1：部署後 Alembic 嘗試建立已存在的 events 表**
+- 原因：Droplet 上的 events 表是舊的 `initdb/01_create_tables.sql` 建的，Alembic 不知道它已存在，啟動時嘗試 `CREATE TABLE events` 報錯
+- 解決：用 `alembic stamp b61ec4551e40` 告訴 Alembic 第一個 migration 已完成，之後只跑剩下兩個新的 migration
+
+**問題 2：passlib 與新版 bcrypt 相容性錯誤**
+- 原因：`passlib` 初始化時會用 `detect_wrap_bug` 測試 bcrypt 行為，但 bcrypt 4.x 改了內部規則，測試直接拋出 `ValueError`，導致 `/register` 請求失敗
+- 解決：移除 `passlib`，改為直接使用 `bcrypt` 套件（`bcrypt.hashpw` / `bcrypt.checkpw`）
+
+![passlib bcrypt 相容性錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/passlib-bcrypt-compatibility-error.png)
+
+**問題 3：登入或登出後頁面變空白，重新整理才正常**
+- 原因：`useEffect` 寫在 `if (!token) return <Login />` 之後，違反 React Hooks 規則——hooks 必須在所有 return 之前被呼叫，順序不一致導致 React 狀態混亂
+- 解決：將 `useEffect` 移到條件判斷之前，並讓 `useEffect` 依賴 `token`，登入後自動 fetch 資料
+
+### 學到的概念
+
+**Alembic Migration**
+- 每次改 schema 寫一個版本檔（如 `0001_create_users.py`），記錄這次加了什麼
+- 部署時跑 `alembic upgrade head`，自動套用還沒跑過的版本
+- `alembic stamp <revision_id>`：把指定版本標記為已完成，不實際執行 SQL——用於已存在資料庫的第一次接入
+- 只做加法（`ADD COLUMN`、`CREATE TABLE`）是安全的；刪欄位、改名是破壞性操作，要謹慎
+
+**JWT（JSON Web Token）**
+- 登入成功後 server 發一張「票」，內含 `user_id` 和到期時間
+- 票用 `SECRET_KEY` 簽名，防止被偽造或篡改
+- 之後每次請求帶上票，server 驗證簽名 → 讀出 `user_id` → 只回傳該使用者資料
+- `SECRET_KEY` 只有 server 知道，洩漏後攻擊者可偽造任何人的票
+
+**bcrypt 密碼 hash**
+- 密碼不能存明文，bcrypt 把密碼變成不可逆的 hash
+- 驗證時：把輸入的密碼丟進同樣運算，比對結果是否一致
+- 就算資料庫被偷，攻擊者也無法從 hash 還原原始密碼
+
+**React Hooks 規則**
+- Hooks（`useState`、`useEffect` 等）必須在 component 頂層呼叫
+- 不能放在條件判斷（`if`）或提前 `return` 之後
+- 違反規則會導致 React 在不同 render 間 hooks 順序不一致，產生難以預期的 bug
+
+**`docker compose down` vs `docker compose down -v`**
+- `docker compose down`：停止並移除容器，Volume 保留（資料安全）
+- `docker compose down -v`：同上，但額外刪除 Volume（資料永久消失）
+- 正常重新部署用前者，想完全重置才用後者
+
+### 下次待辦
+- [ ] 設定防火牆，只開放 port 80 和 8000
+
+---
+
 ## 2026-05-19
 
 ### 完成項目
@@ -61,7 +124,6 @@
 VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 ```
 
-### 學到的概念
 **GitHub Raw URL 與 HackMD 圖片顯示**
 - HackMD 顯示圖片需要圖片 URL 可公開存取，private repo 的路徑無法被外部載入
 - GitHub raw URL 格式：`https://raw.githubusercontent.com/<user>/<repo>/<branch>/<path>`
@@ -84,9 +146,9 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 用 `import.meta.env.VITE_API_URL` 讀取
 
 ### 下次待辦
-- [ ] 設定防火牆，只開放 port 80 和 8000
-- [ ] 新增使用者註冊、登入、登出功能
-- [ ] events 資料表加 user_id，讓每個使用者有自己的日曆
+- [x] 新增使用者註冊、登入、登出功能
+- [x] events 資料表加 user_id，讓每個使用者有自己的日曆
+- [x] 拿到前端網址後把 CORS 改成真實網址 → 改用環境變數 `FRONTEND_ORIGIN`
 
 ---
 
@@ -250,7 +312,7 @@ db-data Volume（資料持久化）
 
 ### 下次待辦
 - [x] ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
-- [ ] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）
+- [x] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）→ 改用環境變數 `FRONTEND_ORIGIN`
 - [x] 測試完整線上流程
 
 ### 學到的概念
