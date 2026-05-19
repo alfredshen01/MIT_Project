@@ -10,6 +10,8 @@
 - 在 Droplet 安裝 Docker，clone repo，`docker compose up -d --build` 成功啟動三服務
 - 修改前端 API 網址指向 Droplet IP，重新部署後確認新增事件功能正常
 - 專案成功上線：`http://137.184.65.172`
+- 用 Vite 環境變數（`VITE_API_URL`）取代寫死的 IP，開發與部署自動切換
+- 建立 GitHub Actions `deploy.yml`，push 到 main 自動 SSH 進 Droplet 部署
 
 ### 遇到的問題與解決
 
@@ -28,6 +30,8 @@
   ```bash
   fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   ```
+
+![記憶體不足錯誤](log-picture/20260519/Memory-lacked.png)
 
 **問題 4：前端打開有資料，但 Droplet 資料庫是空的**
 - 原因：前端程式碼寫死 `http://localhost:8000`，瀏覽器的 JS 打的是 Mac 本機的 FastAPI，不是 Droplet 的
@@ -54,11 +58,23 @@
 VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 ```
 
+### 學到的概念（續）
+
+**GitHub Actions CI/CD**
+- 在 `.github/workflows/deploy.yml` 定義自動化流程
+- push 到 main 觸發，GitHub Actions 用 SSH 私鑰連進 Droplet，執行 `git pull && docker compose up -d --build`
+- 敏感資訊（IP、SSH key）存在 GitHub Secrets，不寫在程式碼裡
+
+**Vite 環境變數**
+- `VITE_` 開頭的變數才會被 Vite 打包進前端
+- `.env.production` — `npm run build` 時使用
+- 開發時不設定就走 `||` 後的 fallback（`localhost:8000`）
+- 用 `import.meta.env.VITE_API_URL` 讀取
+
 ### 下次待辦
 - [ ] 設定防火牆，只開放 port 80 和 8000
-- [ ] 用環境變數控制前端 API 網址，不寫死 IP
-- [ ] 設定 GitHub Actions CI/CD，push 自動部署
-- [ ] 申請網域或使用 GitHub Student Pack 提供的網域
+- [ ] 新增使用者註冊、登入、登出功能
+- [ ] events 資料表加 user_id，讓每個使用者有自己的日曆
 
 ---
 
