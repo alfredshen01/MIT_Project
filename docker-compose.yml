@@ -7,7 +7,6 @@ services:
       POSTGRES_DB: mit_project
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./initdb:/docker-entrypoint-initdb.d
     networks:
       - app-network
 
@@ -15,6 +14,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql://postgres:pwd@db:5432/mit_project
+      FRONTEND_ORIGIN: http://137.184.65.172
+      SECRET_KEY: 09de1714f487eb9c50b9117a3af3a878d7dce81e91646cd67a248f939b7fc8e6
     ports:
       - "8000:8000"
     depends_on:

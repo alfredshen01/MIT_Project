@@ -4,6 +4,7 @@ import dayjs from 'dayjs'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { Button, Modal, Form, Input, TimePicker, DatePicker, Space } from 'antd'
 import './App.css'
+import Login from './Login'
 
 const localizer = dayjsLocalizer(dayjs)
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -31,6 +32,7 @@ function CustomToolbar({ label, onNavigate, onView, view }) {
 }
 
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [events, setEvents] = useState([])
   const [formOpen, setFormOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -39,9 +41,26 @@ export default function App() {
   const [currentView, setCurrentView] = useState('month')
   const [form] = Form.useForm()
 
+  const authHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+  const handleLogin = (newToken) => {
+    localStorage.setItem('token', newToken)
+    setToken(newToken)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    setToken(null)
+  }
+
+  if (!token) return <Login onLogin={handleLogin} />
+
   const fetchEvents = () => {
-    fetch(`${API}/events`)
-      .then(res => res.json())
+    fetch(`${API}/events`, { headers: authHeaders })
+      .then(res => {
+        if (res.status === 401) { handleLogout(); return [] }
+        return res.json()
+      })
       .then(data => {
         setEvents(data.map(e => ({
           id: e.id,
@@ -96,7 +115,7 @@ export default function App() {
       const url = editingId ? `${API}/events/${editingId}` : `${API}/events`
       fetch(url, {
         method: editingId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       }).then(() => {
         fetchEvents()
@@ -114,7 +133,7 @@ export default function App() {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        fetch(`${API}/events/${selectedEvent.id}`, { method: 'DELETE' })
+        fetch(`${API}/events/${selectedEvent.id}`, { method: 'DELETE', headers: authHeaders })
           .then(() => {
             fetchEvents()
             setDetailOpen(false)
@@ -127,7 +146,10 @@ export default function App() {
     <div style={{ padding: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h1 style={{ margin: 0 }}>MIT Project 日曆</h1>
-        <Button type="primary" onClick={() => openCreate({ start: new Date() })}>+ 新增事件</Button>
+        <Space>
+          <Button type="primary" onClick={() => openCreate({ start: new Date() })}>+ 新增事件</Button>
+          <Button onClick={handleLogout}>登出</Button>
+        </Space>
       </div>
 
       <Calendar
