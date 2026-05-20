@@ -68,7 +68,7 @@ export default function Login({ onLogin }) {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <div style={{ width: 400, padding: '2rem', border: '1px solid #eee', borderRadius: 8 }}>
+      <div style={{ width: 400, padding: '2rem', border: '1px solid #b8d8b0', borderRadius: 12, background: 'rgba(255,255,255,0.88)', boxShadow: '0 4px 16px rgba(80,140,80,0.12)' }}>
         <h2 style={{ marginBottom: '1.5rem' }}>MIT Project 日曆</h2>
         <Tabs items={items} onChange={() => form.resetFields()} />
       </div>
