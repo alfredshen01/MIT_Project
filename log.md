@@ -26,6 +26,9 @@
 - 將使用者帳號欄位從 `email` 改為 `username`（前端 label、後端 model、SQL、Alembic migration 四處同步修改）
 - 修復 `fetchEvents()` 缺參數 bug，改為直接使用 `authHeaders`
 - `deploy.yml` 加入 `paths` 過濾，只有程式碼變動才觸發部署，改 log.md 不再觸發
+- 套用大自然風 UI 主題：SVG 葉子紋路背景、半透明卡片、綠色系色彩
+- 使用 Ant Design `ConfigProvider` 設定全局主題顏色（`colorPrimary`、`colorBorder`）
+- push frontend 改動，成功驗證完整 CI/CD 流程（paths 過濾 → 自動 build → 容器重建 → 部署）
 
 ![第一個使用者建立成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/first-user-create.png)
 
@@ -56,7 +59,15 @@
 - 原因：`deploy.yml` 只要 push 到 main 就觸發，不管改的是什麼檔案
 - 解決：加入 `paths` 過濾，只有 `main.py`、`Dockerfile`、`docker-compose.yml`、`pyproject.toml`、`alembic/`、`frontend/` 變動才觸發部署
 
-**問題 7：登入或登出後頁面變空白，重新整理才正常**
+**問題 7：Ant Design 6.x 無法用 CSS class 名稱覆蓋樣式**
+- 原因：Ant Design 5.x 以後改用 CSS-in-JS，class 名稱自動產生 hash（如 `css-abc123`），無法用固定 class 名稱覆蓋
+- 解決：改用 `ConfigProvider` 的 `theme` 設定全局 token（`colorPrimary`、`colorBorder` 等），這是 Ant Design 官方設計的主題客製化方式
+
+**問題 8：部署後網站沒有更新**
+- 原因：瀏覽器快取了舊的 JS/CSS，即使伺服器已更新，瀏覽器仍顯示舊版本
+- 解決：強制重新整理（Mac: `Cmd+Shift+R`、Windows: `Ctrl+Shift+R`），清除快取並重新載入
+
+**問題 9：登入或登出後頁面變空白，重新整理才正常**
 - 原因：`useEffect` 寫在 `if (!token) return <Login />` 之後，違反 React Hooks 規則——hooks 必須在所有 return 之前被呼叫，順序不一致導致 React 狀態混亂
 - 解決：將 `useEffect` 移到條件判斷之前，並讓 `useEffect` 依賴 `token`，登入後自動 fetch 資料
 
@@ -109,17 +120,28 @@
 - 不能放在條件判斷（`if`）或提前 `return` 之後
 - 違反規則會導致 React 在不同 render 間 hooks 順序不一致，產生難以預期的 bug
 
+**Ant Design ConfigProvider 主題設定**
+- Ant Design 5.x+ 使用 CSS-in-JS，不能用 CSS class 覆蓋樣式
+- 正確做法：在最外層用 `<ConfigProvider theme={{ token: { ... } }}>` 包住整個 App
+- 常用 token：`colorPrimary`（主色）、`colorBorder`（邊框色）、`colorBorderSecondary`（次要邊框）
+- 所有 Ant Design 元件會自動套用這些顏色，不需要逐一設定
+
+**瀏覽器快取**
+- 瀏覽器會快取 JS、CSS 等靜態資源，伺服器更新後不一定會自動載入新版本
+- 強制重新整理：Mac `Cmd+Shift+R`、Windows `Ctrl+Shift+R`——清除快取並重新抓取所有資源
+- 一般重新整理（`F5`）不會清除快取
+
 **`docker compose down` vs `docker compose down -v`**
 - `docker compose down`：停止並移除容器，Volume 保留（資料安全）
 - `docker compose down -v`：同上，但額外刪除 Volume（資料永久消失）
 - 正常重新部署用前者，想完全重置才用後者
 
 ### 今日小結
-完成完整使用者認證流程——Alembic migration、JWT、bcrypt 到前端整合——並成功部署；事後進行安全審查，修復機密洩漏、fetchEvents bug、CI/CD 過度觸發等多個問題。
+完成完整使用者認證流程並成功部署；進行安全審查修復多個問題；套用大自然風 UI 並成功驗證完整 CI/CD 自動部署流程。
 
 ### 下次待辦
 - [ ] 設定防火牆，只開放 port 80 和 8000
-- [ ] 確認 Droplet 部署正常、以新帳號重新註冊登入
+- [x] 確認 Droplet 部署正常、以新帳號重新註冊登入
 
 ---
 
