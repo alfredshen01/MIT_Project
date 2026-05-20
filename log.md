@@ -1,5 +1,16 @@
 # 學習進度記錄
 
+## 專案目標
+
+| 目標 | 狀態 |
+|---|---|
+| 三層架構（React + FastAPI + PostgreSQL） | ✅ 完成 |
+| Docker 容器化 | ✅ 完成 |
+| 雲端部署（DigitalOcean Droplet） | ✅ 完成 |
+| CI/CD 自動部署（GitHub Actions） | ✅ 完成 |
+| 使用者認證（JWT + bcrypt） | ✅ 完成 |
+| 防火牆設定（port 80 / 8000） | 🔲 待辦 |
+
 ---
 
 ## 2026-05-20
@@ -59,6 +70,9 @@
 - `docker compose down`：停止並移除容器，Volume 保留（資料安全）
 - `docker compose down -v`：同上，但額外刪除 Volume（資料永久消失）
 - 正常重新部署用前者，想完全重置才用後者
+
+### 今日小結
+完成完整使用者認證流程——Alembic migration、JWT、bcrypt 到前端整合——並成功部署，第一個真實使用者建立成功。
 
 ### 下次待辦
 - [ ] 設定防火牆，只開放 port 80 和 8000
@@ -145,6 +159,9 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 開發時不設定就走 `||` 後的 fallback（`localhost:8000`）
 - 用 `import.meta.env.VITE_API_URL` 讀取
 
+### 今日小結
+首次在真實 VPS 完成部署，從手動 SSH 到 GitHub Actions 全自動化，建立起完整的 CI/CD 流程；同時理解了 PaaS vs VPS 的本質差異。
+
 ### 下次待辦
 - [x] 新增使用者註冊、登入、登出功能
 - [x] events 資料表加 user_id，讓每個使用者有自己的日曆
@@ -154,9 +171,22 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 
 ## 2026-05-18
 
+### 完成項目
+- 手動建立 Docker 自訂網路、Volume、PostgreSQL 容器、FastAPI 容器
+- 修改 `main.py` 讓 `DATABASE_URL` 從環境變數讀取，開發與容器環境共用同一份程式碼
+- 建立 `Dockerfile`，用 `uv` 安裝依賴並啟動 FastAPI
+- 擴充 LVM，將根目錄從 23GB 擴充至 46GB
+- 確認容器間網路連線正常，前端可透過容器化後端新增事件並持久化至 Volume
+- 撰寫 `docker-compose.yml`，整合 db、api、web 三個服務
+- 撰寫 `frontend/Dockerfile`（multi-stage build：node build + nginx 提供靜態檔案）
+- 建立 `initdb/01_create_tables.sql`，讓 PostgreSQL 第一次啟動時自動建立 events 資料表
+- 在 Railway 完成初步部署，FastAPI 成功上線
+
+![容器資料庫驗證](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/Database-check.png)
+
 ### 遇到的問題與解決
 
-**問題：同時出現 port :5173 和 :5174，:5174 是空的（CORS 問題）**
+**問題 1：同時出現 port :5173 和 :5174，:5174 是空的（CORS 問題）**
 
 ![VS Code 同時出現四個 port](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/ports.png)
 
@@ -173,28 +203,17 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 解決：`pkill -f vite` 殺掉舊實例，再重新 `npm run dev` 回到 :5173；或將後端 `allow_origins` 加入 `:5174`
 - 補充：開發時可改成 `"*"` 允許所有來源，但上線時必須改回真實網址
 
-### 完成項目
-- 手動建立 Docker 自訂網路、Volume、PostgreSQL 容器、FastAPI 容器
-- 修改 `main.py` 讓 `DATABASE_URL` 從環境變數讀取，開發與容器環境共用同一份程式碼
-- 建立 `Dockerfile`，用 `uv` 安裝依賴並啟動 FastAPI
-- 擴充 LVM，將根目錄從 23GB 擴充至 46GB
-- 確認容器間網路連線正常，前端可透過容器化後端新增事件並持久化至 Volume
-
-![容器資料庫驗證](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/Database-check.png)
-
-### 遇到的問題與解決
-
-**問題 1：Docker 指令 permission denied**
+**問題 2：Docker 指令 permission denied**
 - 原因：使用者不在 `docker` 群組，無法存取 `/var/run/docker.sock`
 - 解決：`sudo usermod -aG docker $USER` 加入群組；短期用 `sudo` 繞過
 
-**問題 2：PostgreSQL 容器啟動失敗（版本格式不相容）**
+**問題 3：PostgreSQL 容器啟動失敗（版本格式不相容）**
 - 原因：`mit-db-data` Volume 是 3 週前 postgres:15 初始化的格式，現在的 `postgres:latest` 已升級到 v18，格式不相容，啟動時報格式錯誤
 - 解決：改用 `postgres:15` 明確指定版本，與 Volume 格式一致；同時學到正式環境不應使用 `latest` tag
 
 ![postgres version 問題](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/docker-image-version.png)
 
-**問題 3：磁碟空間不足（根目錄 100% 滿）**
+**問題 4：磁碟空間不足（根目錄 100% 滿）**
 - 原因：Ubuntu 安裝時 LVM 只分配 23GB 給根目錄，剩下 ~24GB 在 Volume Group 中未分配；加上 Docker Image 佔用大量空間（postgres:latest 671MB、postgres:15 654MB、mit_test-web 296MB）
 - 解決：
   1. `sudo docker system prune -a` 清除未使用的 Image 與快取，釋放 350MB
@@ -206,14 +225,31 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 |---|---|
 | ![vm-nospaceleft](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospace-solve.png) |
 
-**問題 4：`docker system prune -a` 把自訂網路和容器一起刪掉**
+**問題 5：`docker system prune -a` 把自訂網路和容器一起刪掉**
 - 原因：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
 - 解決：重新建立網路和容器；Volume `mit-db-data` 不受影響，資料保留
 - 學到：`docker system prune -a` 是高風險指令，執行前要確認哪些資源會被刪除
 
-**問題 5：容器狀態 `Created` 但沒有啟動（網路找不到）**
+**問題 6：容器狀態 `Created` 但沒有啟動（網路找不到）**
 - 原因：`my-network` 被 prune 刪除後容器嘗試啟動找不到網路，一直停在 `Created`
 - 解決：重建網路後 `docker start mit-db` 成功啟動
+
+**問題 7：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
+- 原因：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
+- 解決：
+  1. `main.py` CORS 改為 `allow_origins=["*"]`
+  2. 建立 `initdb/01_create_tables.sql` 讓資料庫自動初始化
+  3. `docker compose down -v` 刪除舊 Volume 後重新啟動
+
+![Compose CORS 500 錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/compose-cors-500-error.png)
+
+**問題 8：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
+- 原因：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
+- 解決：在 VS Code Ports 分頁手動加入 port 80，VS Code 自動分配 Mac 上的隨機 port（如 :62178）對應
+
+**問題 9：Railway 只部署 FastAPI，沒有跑完整 Compose**
+- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
+- 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
 
 ### 學到的概念
 
@@ -252,30 +288,6 @@ mit-db-data Volume（資料持久化）
 - Ubuntu 安裝時預設只分配一半空間給根目錄，剩下在 VG 中未分配
 - `vgdisplay` 查看 VG 可用空間，`lvextend` 擴充，`resize2fs` 通知檔案系統
 
-### 完成項目- 撰寫 `docker-compose.yml`，整合 db、api、web 三個服務
-- 撰寫 `frontend/Dockerfile`（multi-stage build：node build + nginx 提供靜態檔案）
-- 建立 `initdb/01_create_tables.sql`，讓 PostgreSQL 第一次啟動時自動建立 events 資料表
-- 在 Railway 完成初步部署，FastAPI 成功上線
-
-### 遇到的問題與解決
-**問題 6：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
-- 原因：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
-- 解決：
-  1. `main.py` CORS 改為 `allow_origins=["*"]`
-  2. 建立 `initdb/01_create_tables.sql` 讓資料庫自動初始化
-  3. `docker compose down -v` 刪除舊 Volume 後重新啟動
-
-![Compose CORS 500 錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/compose-cors-500-error.png)
-
-**問題 7：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
-- 原因：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
-- 解決：在 VS Code Ports 分頁手動加入 port 80，VS Code 自動分配 Mac 上的隨機 port（如 :62178）對應
-
-**問題 8：Railway 只部署 FastAPI，沒有跑完整 Compose**
-- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
-- 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
-
-### 學到的概念
 **docker-compose.yml 的角色**
 - 把手動建立網路、Volume、容器的指令整合成一個 YAML 檔案
 - `docker compose up --build` 一鍵啟動，`docker compose down -v` 連 Volume 一起刪除
@@ -310,19 +322,20 @@ db-data Volume（資料持久化）
 - PostgreSQL 由 Railway 提供，不需要自己設定
 - 每個服務（FastAPI、前端）各自連結 repo 的不同 Dockerfile
 
-### 下次待辦
-- [x] ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
-- [x] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）→ 改用環境變數 `FRONTEND_ORIGIN`
-- [x] 測試完整線上流程
-
-### 學到的概念
-
 **Claude Code 的 shell 限制**
 - Claude 只有一個 shell 環境，同一時間只能執行一件事
 - 背景執行（指令加 `&`）：程式在後台跑，不佔 shell，但看不到 log，也沒辦法 Ctrl+C
 - 前景執行（不加 `&`）：Claude 的工具會卡住，沒辦法繼續回應
 - Subagent 也有同樣限制，而且跑完任務就結束，無法維持 server 持續運行
 - 結論：啟動 FastAPI 和 React dev server 這類持續運行的程式，應該自己在 VS Code 終端機開分頁執行，才能看到 log 且可以 Ctrl+C 控制
+
+### 今日小結
+從手動 `docker run` 進化到 docker-compose 一鍵啟動，掌握 Image / Container / Volume / Network 四大核心元素；過程中遇到版本不相容、磁碟滿、prune 誤刪等問題，都透過調查根本原因解決。
+
+### 下次待辦
+- [x] ~~確認部署平台並完成三服務部署（PostgreSQL、FastAPI、前端）~~ → 改用 DigitalOcean Droplet，Railway 不支援 docker-compose
+- [x] 拿到前端網址後把 CORS 改成真實網址（目前暫時用 `"*"`）→ 改用環境變數 `FRONTEND_ORIGIN`
+- [x] 測試完整線上流程
 
 ---
 
@@ -334,6 +347,23 @@ db-data Volume（資料持久化）
 - 修正 CSS 衝突問題（詳見下方）
 - 新增自訂 toolbar，檢視按鈕改為日→週→月→議程順序
 - 將套件管理從 `requirements.txt` 遷移至 `uv init`（pyproject.toml + uv.lock）
+
+### 遇到的問題與解決
+
+**問題 1：非當月日期變白色、導覽按鈕消失**
+- 原因 A：Vite 建立專案時自動產生的 `index.css` 含有 `color-scheme: light dark`，系統深色模式下會把頁面背景變黑，蓋掉月曆顏色
+- 原因 B：`index.css` 的 `#root { text-align: center }` 影響月曆排版
+- 解決：清除 `index.css` 的模板內容，只保留 `body { margin: 0 }`
+- 補充：安裝 antd 後也會有 CSS 衝突，在 `App.css` 加 override 修正 `.rbc-off-range` 和 toolbar 按鈕樣式
+
+**問題 2：自訂 toolbar 按鈕點下去沒反應**
+- 原因：月曆的 view 狀態沒有被外部控制，換成自訂 toolbar 後按鈕觸發的 `onView` 無法更新畫面
+- 解決：加入 `const [currentView, setCurrentView] = useState('month')`，並傳給 Calendar
+
+**問題 3：`git push` 從我的 shell 執行失敗**
+- 原因：我的 shell 是非互動模式，沒有 TTY，git 無法提示輸入帳號密碼
+- VS Code 的終端機有存取 credential cache 的權限，所以從終端機 push 正常
+- 結論：git push 需要由使用者自己在終端機執行
 
 ### 學到的概念
 
@@ -366,22 +396,8 @@ db-data Volume（資料持久化）
 - 傳入 `view={currentView}` 和 `onView={setCurrentView}` 才能讓按鈕切換生效
 - 原則：自訂子元件替換預設後，原本內部的狀態需要由外部接管
 
-### 遇到的問題與解決
-
-**問題 1：非當月日期變白色、導覽按鈕消失**
-- 原因 A：Vite 建立專案時自動產生的 `index.css` 含有 `color-scheme: light dark`，系統深色模式下會把頁面背景變黑，蓋掉月曆顏色
-- 原因 B：`index.css` 的 `#root { text-align: center }` 影響月曆排版
-- 解決：清除 `index.css` 的模板內容，只保留 `body { margin: 0 }`
-- 補充：安裝 antd 後也會有 CSS 衝突，在 `App.css` 加 override 修正 `.rbc-off-range` 和 toolbar 按鈕樣式
-
-**問題 2：自訂 toolbar 按鈕點下去沒反應**
-- 原因：月曆的 view 狀態沒有被外部控制，換成自訂 toolbar 後按鈕觸發的 `onView` 無法更新畫面
-- 解決：加入 `const [currentView, setCurrentView] = useState('month')`，並傳給 Calendar
-
-**問題 3：`git push` 從我的 shell 執行失敗**
-- 原因：我的 shell 是非互動模式，沒有 TTY，git 無法提示輸入帳號密碼
-- VS Code 的終端機有存取 credential cache 的權限，所以從終端機 push 正常
-- 結論：git push 需要由使用者自己在終端機執行
+### 今日小結
+完成前端完整 CRUD 介面，antd + react-big-calendar 配合；受控元件的概念從理論變成實際遇到的 bug，印象深刻。
 
 ### 下次待辦
 - [x] Docker 容器化（FastAPI + PostgreSQL）
@@ -392,6 +408,12 @@ db-data Volume（資料持久化）
 ---
 
 ## 2026-05-16
+
+### 完成項目
+（本日為概念複習與深化，無新功能實作）
+
+### 遇到的問題與解決
+（無）
 
 ### 學到的概念
 
@@ -423,6 +445,14 @@ db-data Volume（資料持久化）
 - 命令列 HTTP 工具，可直接送請求並印出回應，常用來測試 API
 - 不是瀏覽器，不受同源政策限制
 
+### 今日小結
+深入理解 CORS 機制，從理論（CSRF 攻擊場景、Preflight 流程）到操作細節（同源定義、allow_origins 設定），建立完整心理模型。
+
+### 下次待辦
+- [x] 前端加入修改事件（Update）介面
+- [x] 套用 UI 元件庫（antd）
+- [x] Docker 容器化
+
 ---
 
 ## 2026-05-11
@@ -439,12 +469,18 @@ db-data Volume（資料持久化）
 - 安裝 react-big-calendar + dayjs，完成月曆 UI
 - 測試新增事件、刪除事件功能正常
 
+### 遇到的問題與解決
+（無記錄）
+
 ### 學到的概念
 - Docker 網路：`docker network create` 建立自訂子網，容器間用名稱互訪
 - HTTP 方法：GET / POST / PUT / DELETE 對應 CRUD
 - uv vs npm：Python 套件與 JS 套件是獨立環境
 - Vite HMR：程式碼變更後瀏覽器自動更新
 - CORS：前後端跨 port 呼叫需要在後端設定允許來源
+
+### 今日小結
+從零建立三層架構（React + FastAPI + PostgreSQL），前後端資料庫全部串通，完成基礎日曆 CRUD，整個 stack 第一次跑起來。
 
 ### 下次待辦
 - [x] 前端加入修改事件（Update）介面
