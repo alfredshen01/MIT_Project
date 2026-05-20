@@ -12,10 +12,8 @@ services:
 
   api:
     build: .
-    environment:
-      DATABASE_URL: postgresql://postgres:pwd@db:5432/mit_project
-      FRONTEND_ORIGIN: http://137.184.65.172
-      SECRET_KEY: 09de1714f487eb9c50b9117a3af3a878d7dce81e91646cd67a248f939b7fc8e6
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:

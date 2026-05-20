@@ -55,10 +55,31 @@
 - 之後每次請求帶上票，server 驗證簽名 → 讀出 `user_id` → 只回傳該使用者資料
 - `SECRET_KEY` 只有 server 知道，洩漏後攻擊者可偽造任何人的票
 
-**bcrypt 密碼 hash**
-- 密碼不能存明文，bcrypt 把密碼變成不可逆的 hash
-- 驗證時：把輸入的密碼丟進同樣運算，比對結果是否一致
-- 就算資料庫被偷，攻擊者也無法從 hash 還原原始密碼
+**bcrypt 密碼 hash（深入）**
+- 密碼不能存明文，bcrypt 把密碼變成不可逆的 hash，存進資料庫
+- bcrypt 演算法是公開的，任何人都能呼叫，但它是**單向的**：正向可算，反向不可能
+- 驗證時不是「解開 hash 還原密碼」，而是「把輸入的密碼重新 hash 一次，比對結果是否相同」
+- 就算資料庫被偷，攻擊者拿到的只有 hash，無法還原原始密碼，只能暴力逐一猜測（bcrypt 故意設計很慢以提高破解成本）
+- 明文密碼只存在 `register` 那一瞬間，用完即丟，永遠不會進資料庫
+
+**bcrypt hash vs JWT token 的本質差異**
+
+| | bcrypt hash | JWT token |
+|---|---|---|
+| 用途 | 驗證你是誰（密碼） | 驗證你已登入（通行證） |
+| 存放位置 | 資料庫 `users` 表 | 瀏覽器 `localStorage` |
+| 何時產生 | 註冊時 | 登入成功後 |
+| 永久性 | 永久（除非改密碼） | 暫時（7 天過期） |
+| 用到的 key | 無（bcrypt 本身的演算法） | `SECRET_KEY`（簽名用） |
+
+- 換掉 `SECRET_KEY` 只讓舊 token 失效（用戶需重新登入），資料庫的密碼 hash 完全不受影響
+- 兩者混淆的常見原因：都叫 hash/key，但作用完全不同
+
+**機密管理：.env 不進 git**
+- `SECRET_KEY`、資料庫密碼等機密不應寫在 `docker-compose.yml`（此檔被 git 追蹤，public repo 就等於公開）
+- 正確做法：在伺服器上手動建立 `.env`，加入 `.gitignore`，`docker-compose.yml` 改用 `env_file: .env`
+- `.env` 只存在伺服器本機，`git pull` 不會刪它，`git push` 也不會上傳它
+- git 的「無視」是雙向的：不追蹤的檔案，push 不上去、pull 不會刪掉、`git status` 也不顯示
 
 **React Hooks 規則**
 - Hooks（`useState`、`useEffect` 等）必須在 component 頂層呼叫
