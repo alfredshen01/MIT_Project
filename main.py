@@ -39,12 +39,12 @@ class Event(BaseModel):
 
 
 class UserRegister(BaseModel):
-    email: str
+    username: str
     password: str
 
 
 class UserLogin(BaseModel):
-    email: str
+    username: str
     password: str
 
 
@@ -75,12 +75,12 @@ def read_root():
 def register(body: UserRegister):
     hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     with engine.connect() as conn:
-        existing = conn.execute(text("SELECT id FROM users WHERE email=:email"), {"email": body.email}).first()
+        existing = conn.execute(text("SELECT id FROM users WHERE username=:username"), {"username": body.username}).first()
         if existing:
-            raise HTTPException(status_code=400, detail="Email 已被註冊")
+            raise HTTPException(status_code=400, detail="帳號已被使用")
         conn.execute(
-            text("INSERT INTO users (email, hashed_password) VALUES (:email, :hashed)"),
-            {"email": body.email, "hashed": hashed},
+            text("INSERT INTO users (username, hashed_password) VALUES (:username, :hashed)"),
+            {"username": body.username, "hashed": hashed},
         )
         conn.commit()
     return {"message": "註冊成功"}
@@ -89,7 +89,7 @@ def register(body: UserRegister):
 @app.post("/login")
 def login(body: UserLogin):
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT id, hashed_password FROM users WHERE email=:email"), {"email": body.email}).first()
+        row = conn.execute(text("SELECT id, hashed_password FROM users WHERE username=:username"), {"username": body.username}).first()
     if not row or not bcrypt.checkpw(body.password.encode(), row.hashed_password.encode()):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
     return {"token": create_token(row.id)}

@@ -34,7 +34,7 @@ export default function Login({ onLogin }) {
 
   const fields = (
     <Form form={form} layout="vertical" style={{ maxWidth: 360 }}>
-      <Form.Item name="email" label="Email" rules={[{ required: true, message: '請輸入 Email' }]}>
+      <Form.Item name="username" label="帳號" rules={[{ required: true, message: '請輸入帳號' }]}>
         <Input />
       </Form.Item>
       <Form.Item name="password" label="密碼" rules={[{ required: true, message: '請輸入密碼' }]}>
