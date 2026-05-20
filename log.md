@@ -35,40 +35,52 @@
 ### 遇到的問題與解決
 
 **問題 1：部署後 Alembic 嘗試建立已存在的 events 表**
-- 原因：Droplet 上的 events 表是舊的 `initdb/01_create_tables.sql` 建的，Alembic 不知道它已存在，啟動時嘗試 `CREATE TABLE events` 報錯
+- 緣由：Droplet 上的 events 表是舊的 `initdb/01_create_tables.sql` 建的，Alembic 不知道它已存在，啟動時嘗試 `CREATE TABLE events` 報錯
+- 原因：Alembic 用資料庫中的 `alembic_version` 表追蹤版本狀態，但手動建立的資料表沒有這筆記錄；Alembic 從未「看見」這張表，誤以為資料庫是全新的，試圖從頭執行所有 migration
 - 解決：用 `alembic stamp b61ec4551e40` 告訴 Alembic 第一個 migration 已完成，之後只跑剩下兩個新的 migration
 
 **問題 2：passlib 與新版 bcrypt 相容性錯誤**
-- 原因：`passlib` 初始化時會用 `detect_wrap_bug` 測試 bcrypt 行為，但 bcrypt 4.x 改了內部規則，測試直接拋出 `ValueError`，導致 `/register` 請求失敗
+- 緣由：`passlib` 初始化時會用 `detect_wrap_bug` 測試 bcrypt 行為，但 bcrypt 4.x 改了內部規則，測試直接拋出 `ValueError`，導致 `/register` 請求失敗
+- 原因：passlib 是對多種 hash 演算法的封裝層，它依賴 bcrypt 的特定內部行為來執行版本偵測；bcrypt 4.x 在不破壞 hash 功能的情況下修改了內部實作，使 passlib 的偵測邏輯觸發了非預期的例外
 - 解決：移除 `passlib`，改為直接使用 `bcrypt` 套件（`bcrypt.hashpw` / `bcrypt.checkpw`）
 
 ![passlib bcrypt 相容性錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/passlib-bcrypt-compatibility-error.png)
 
 **問題 3：推送後 GitHub Actions 自動部署失敗（Droplet 找不到 .env）**
-- 原因：`docker-compose.yml` 改用 `env_file: .env` 後，Docker 啟動時去找 `/root/MIT_Project/.env`，但這個檔案從來沒有被建立過（`.env` 在 `.gitignore` 裡，不會跟著 git 走）
+- 緣由：`docker-compose.yml` 改用 `env_file: .env` 後，Docker 啟動時去找 `/root/MIT_Project/.env`，但這個檔案從來沒有被建立過（`.env` 在 `.gitignore` 裡，不會跟著 git 走）
+- 原因：`.env` 被 `.gitignore` 排除後，它只存在於建立它的機器上；CI/CD 的 `git pull` 不會建立或同步這個檔案，每台機器的機密必須各自手動設定一次
 - 解決：SSH 進 Droplet，手動建立 `.env` 填入生產環境的機密，再重新執行 `docker compose up -d --build`
 - 學到：`.env` 需要在每台機器上**手動建立一次**，不會自動同步
 
+**問題 4：帳號欄位改名後登入回 422 錯誤**
+- 緣由：push 了 `username` 相關的程式碼改動，但問題 3 的部署失敗（Droplet 找不到 .env）讓容器沒有重新 build；舊容器仍在跑期待 `email` 欄位的舊版 `main.py`，新前端送 `username`，後端驗證失敗回 422
+- 原因：CI/CD 流程中任何一步失敗（如缺少 .env 導致 compose 中斷），後續步驟都不會執行；部署看起來「有跑」（GitHub Actions 有觸發），但容器沒有真正重建，新舊程式碼不一致
+- 解決：SSH 進 Droplet 手動執行 `docker compose up -d --build`，強制重建所有容器
+
 **問題 5：新增/編輯/刪除事件後自動登出**
-- 原因：`fetchEvents(currentToken)` 需要外部傳入 JWT token，但新增/編輯/刪除操作完成後呼叫的是 `fetchEvents()`（沒有傳參數）。`currentToken` 變成 `undefined`，導致 Authorization header 變成 `Bearer undefined`，伺服器收到無效 token 回 401，觸發自動登出
-- 根本問題：同一份 JWT token 存在兩個地方（component state 的 `token` 和函式參數的 `currentToken`），兩者沒有同步，呼叫時容易漏傳
+- 緣由：`fetchEvents(currentToken)` 需要外部傳入 JWT token，但新增/編輯/刪除操作完成後呼叫的是 `fetchEvents()`（沒有傳參數）。`currentToken` 變成 `undefined`，導致 Authorization header 變成 `Bearer undefined`，伺服器收到無效 token 回 401，觸發自動登出
+- 原因：同一份 JWT token 存在兩個地方（component state 的 `token` 和函式參數的 `currentToken`），兩者沒有同步，呼叫時容易漏傳
 - 解決：移除 `currentToken` 參數，改為直接使用 component 範圍內已有的 `authHeaders`（它內含 `token` state）。函式透過 closure 直接讀取外層變數，不需要外部傳入，任何地方呼叫都不會出錯
 - 原則：同一份資料只存一個地方，不要在函式參數和外層 state 之間重複傳遞
 
 **問題 6：每次 push log.md 都觸發不必要的部署**
-- 原因：`deploy.yml` 只要 push 到 main 就觸發，不管改的是什麼檔案
+- 緣由：`deploy.yml` 只要 push 到 main 就觸發，不管改的是什麼檔案
+- 原因：GitHub Actions 的觸發條件預設只判斷分支名稱，不分析本次 push 改動了哪些檔案；任何 commit 到 main 分支都會觸發，無論改動是否影響程式運行
 - 解決：加入 `paths` 過濾，只有 `main.py`、`Dockerfile`、`docker-compose.yml`、`pyproject.toml`、`alembic/`、`frontend/` 變動才觸發部署
 
 **問題 7：Ant Design 6.x 無法用 CSS class 名稱覆蓋樣式**
-- 原因：Ant Design 5.x 以後改用 CSS-in-JS，class 名稱自動產生 hash（如 `css-abc123`），無法用固定 class 名稱覆蓋
+- 緣由：Ant Design 5.x 以後改用 CSS-in-JS，class 名稱自動產生 hash（如 `css-abc123`），無法用固定 class 名稱覆蓋
+- 原因：CSS-in-JS 方案在 JavaScript 執行時期動態生成 class 名稱並注入 `<style>` 標籤，hash 根據元件版本和配置決定；靜態 CSS 選擇器在程式還沒跑起來時就已確定，無法鎖定動態產生的 class
 - 解決：改用 `ConfigProvider` 的 `theme` 設定全局 token（`colorPrimary`、`colorBorder` 等），這是 Ant Design 官方設計的主題客製化方式
 
 **問題 8：部署後網站沒有更新**
-- 原因：瀏覽器快取了舊的 JS/CSS，即使伺服器已更新，瀏覽器仍顯示舊版本
+- 緣由：瀏覽器快取了舊的 JS/CSS，即使伺服器已更新，瀏覽器仍顯示舊版本
+- 原因：瀏覽器快取靜態資源時以 URL 作為 key；只要資源的 URL 沒有改變，瀏覽器就繼續使用本機快取，不會主動向伺服器確認是否有新版本
 - 解決：強制重新整理（Mac: `Cmd+Shift+R`、Windows: `Ctrl+Shift+R`），清除快取並重新載入
 
 **問題 9：登入或登出後頁面變空白，重新整理才正常**
-- 原因：`useEffect` 寫在 `if (!token) return <Login />` 之後，違反 React Hooks 規則——hooks 必須在所有 return 之前被呼叫，順序不一致導致 React 狀態混亂
+- 緣由：`useEffect` 寫在 `if (!token) return <Login />` 之後，違反 React Hooks 規則——hooks 必須在所有 return 之前被呼叫，順序不一致導致 React 狀態混亂
+- 原因：React 以「呼叫順序」而非「名稱」識別每個 hook，每次 render 必須呼叫完全相同數量且順序的 hooks；提前 return 讓某些 render 少呼叫了 hook，React 內部索引對不上，狀態追蹤錯亂
 - 解決：將 `useEffect` 移到條件判斷之前，並讓 `useEffect` 依賴 `token`，登入後自動 fetch 資料
 
 ### 學到的概念
@@ -137,11 +149,11 @@
 - 正常重新部署用前者，想完全重置才用後者
 
 ### 今日小結
-完成完整使用者認證流程並成功部署；進行安全審查修復多個問題；套用大自然風 UI 並成功驗證完整 CI/CD 自動部署流程。
+完成完整使用者認證流程——Alembic migration、JWT、bcrypt 到前端整合——並成功部署；事後進行安全審查，修復機密洩漏、fetchEvents bug、CI/CD 過度觸發等多個問題。
 
 ### 下次待辦
 - [ ] 設定防火牆，只開放 port 80 和 8000
-- [x] 確認 Droplet 部署正常、以新帳號重新註冊登入
+- [ ] 確認 Droplet 部署正常、以新帳號重新註冊登入
 
 ---
 
@@ -162,16 +174,19 @@
 ### 遇到的問題與解決
 
 **問題 1：Railway 只部署 FastAPI，沒有跑完整 Compose**
-- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不讀 `docker-compose.yml`；Railway 是「一個服務對應一個 repo」的邏輯
+- 緣由：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不讀 `docker-compose.yml`；Railway 是「一個服務對應一個 repo」的邏輯
+- 原因：Railway 是 PaaS（Platform as a Service），用自己的邏輯解讀 repo 結構；偵測到 Dockerfile 就執行單一容器部署，docker-compose.yml 是為自行管理 VPS 設計的，兩者部署哲學根本不同
 - 解決：改用 DigitalOcean Droplet（VPS），自己管伺服器，直接跑 `docker compose up`
 - 學到：`docker-compose.yml` 適合本機開發或 VPS 部署，Railway/Render 等 PaaS 有自己的管理方式
 
 **問題 2：Droplet git clone private repo 失敗（credential 問題）**
-- 原因：VS Code 的 git credential helper 干擾，HTTPS clone 需要 PAT，但用 Google 登入的 GitHub 帳號沒有密碼
+- 緣由：VS Code 的 git credential helper 干擾，HTTPS clone 需要 PAT，但用 Google 登入的 GitHub 帳號沒有密碼
+- 原因：用 Google OAuth 登入 GitHub 的帳號沒有設定傳統密碼，HTTPS clone 需要密碼或 PAT 認證，但這類帳號無法設定密碼，HTTPS 流程無法完成
 - 解決：在 Droplet 生成新的 SSH key，加到 GitHub SSH keys，改用 SSH clone（`git clone git@github.com:...`）
 
 **問題 3：Droplet build 時記憶體不足，Image 下載失敗**
-- 原因：1GB RAM 同時 build 兩個大 Image（node:22-slim 50MB + python:3.12-slim 12MB），記憶體撐不住，出現 TLS handshake timeout 和 context deadline exceeded
+- 緣由：1GB RAM 同時 build 兩個大 Image（node:22-slim 50MB + python:3.12-slim 12MB），記憶體撐不住，出現 TLS handshake timeout 和 context deadline exceeded
+- 原因：Docker build 時 node 和 python Image 同時下載並解壓縮，記憶體峰值超過 1GB 上限；OS 在記憶體極限下無法維持 TCP 連線的 TLS handshake，造成下載中途逾時
 - 解決：加 1GB swap 空間讓系統有更多可用記憶體
   ```bash
   fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
@@ -180,7 +195,8 @@
 ![記憶體不足錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/Memory-lacked.png)
 
 **問題 4：前端打開有資料，但 Droplet 資料庫是空的**
-- 原因：前端程式碼寫死 `http://localhost:8000`，瀏覽器的 JS 打的是 Mac 本機的 FastAPI，不是 Droplet 的
+- 緣由：前端程式碼寫死 `http://localhost:8000`，瀏覽器的 JS 打的是 Mac 本機的 FastAPI，不是 Droplet 的
+- 原因：前端 JavaScript 是在使用者的瀏覽器上執行的，`localhost` 指的是使用者的電腦，不是伺服器；API 網址寫死在前端程式碼裡，部署後沒有切換機制
 - 解決：把 `App.jsx` 的 API 網址改成 `http://137.184.65.172:8000`，commit + push，Droplet 重新 build
 
 ### 學到的概念
@@ -260,6 +276,7 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 當自己再啟動一次 Vite，偵測到 :5173 被佔用，自動改用 :5174
 - :5174 是空的，原本以為是後端沒開或資料庫限制，但其實都不是
 - **真正原因：CORS**，後端 `main.py` 的白名單只有 `"http://localhost:5173"`，來自 :5174 的請求被擋掉，fetch 失敗，畫面空白
+- 原因：背景執行（`&`）的 Vite 沒有被 `pkill` 完全終止，殘留 process 佔住 :5173；Vite 自動遞增 port 而非報錯，問題不明顯；CORS 的 origin 是精確比對，:5173 和 :5174 是不同的 origin
 
 | :5173（CORS 通過，有資料） | :5174（CORS 被擋，空白） |
 |---|---|
@@ -270,17 +287,20 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 補充：開發時可改成 `"*"` 允許所有來源，但上線時必須改回真實網址
 
 **問題 2：Docker 指令 permission denied**
-- 原因：使用者不在 `docker` 群組，無法存取 `/var/run/docker.sock`
+- 緣由：使用者不在 `docker` 群組，無法存取 `/var/run/docker.sock`
+- 原因：Docker 設計將所有操作集中到 Unix socket（`/var/run/docker.sock`），只有 root 或 docker 群組成員可存取；這是安全設計，防止任意使用者控制 Docker daemon，新安裝後必須手動加入群組
 - 解決：`sudo usermod -aG docker $USER` 加入群組；短期用 `sudo` 繞過
 
 **問題 3：PostgreSQL 容器啟動失敗（版本格式不相容）**
-- 原因：`mit-db-data` Volume 是 3 週前 postgres:15 初始化的格式，現在的 `postgres:latest` 已升級到 v18，格式不相容，啟動時報格式錯誤
+- 緣由：`mit-db-data` Volume 是 3 週前 postgres:15 初始化的格式，現在的 `postgres:latest` 已升級到 v18，格式不相容，啟動時報格式錯誤
+- 原因：PostgreSQL 每個主版本的 data directory 格式不相容；使用 `latest` tag 導致 Docker 某次 pull 後拿到更新版本（v15 → v18），但 Volume 的格式已由舊版本決定，新版無法讀取
 - 解決：改用 `postgres:15` 明確指定版本，與 Volume 格式一致；同時學到正式環境不應使用 `latest` tag
 
 ![postgres version 問題](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/docker-image-version.png)
 
 **問題 4：磁碟空間不足（根目錄 100% 滿）**
-- 原因：Ubuntu 安裝時 LVM 只分配 23GB 給根目錄，剩下 ~24GB 在 Volume Group 中未分配；加上 Docker Image 佔用大量空間（postgres:latest 671MB、postgres:15 654MB、mit_test-web 296MB）
+- 緣由：Ubuntu 安裝時 LVM 只分配 23GB 給根目錄，剩下 ~24GB 在 Volume Group 中未分配；加上 Docker Image 佔用大量空間（postgres:latest 671MB、postgres:15 654MB、mit_test-web 296MB）
+- 原因：Ubuntu 安裝預設使用 LVM，但只把一半磁碟空間分配給根目錄（Logical Volume），另一半留在 Volume Group 中；Docker Image 體積大且 build 過程產生大量暫存層，在有限空間中很快被填滿
 - 解決：
   1. `sudo docker system prune -a` 清除未使用的 Image 與快取，釋放 350MB
   2. `sudo lvextend -l +100%FREE /dev/mapper/ubuntu--vg-ubuntu--lv` 擴充 LV
@@ -292,16 +312,19 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 | ![vm-nospaceleft](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospace-solve.png) |
 
 **問題 5：`docker system prune -a` 把自訂網路和容器一起刪掉**
-- 原因：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
+- 緣由：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
+- 原因：`docker system prune -a` 以「是否有 Running 狀態的容器使用」作為判斷標準；`Exited` 的容器和沒有 Running 容器附掛的自訂網路都被視為未使用，在不熟悉清除範圍的情況下執行是高風險操作
 - 解決：重新建立網路和容器；Volume `mit-db-data` 不受影響，資料保留
 - 學到：`docker system prune -a` 是高風險指令，執行前要確認哪些資源會被刪除
 
 **問題 6：容器狀態 `Created` 但沒有啟動（網路找不到）**
-- 原因：`my-network` 被 prune 刪除後容器嘗試啟動找不到網路，一直停在 `Created`
+- 緣由：`my-network` 被 prune 刪除後容器嘗試啟動找不到網路，一直停在 `Created`
+- 原因：Docker 容器的網路配置在建立時就已綁定；指定的網路被刪除後，容器無法完成初始化啟動流程，等同失去了它的「網路插座」
 - 解決：重建網路後 `docker start mit-db` 成功啟動
 
 **問題 7：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
-- 原因：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
+- 緣由：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
+- 原因：`docker compose down -v` 刪除 Volume 後，新 Volume 是完全空白的資料庫；`events` 資料表的建立 SQL 沒有放在 `initdb/` 裡，資料庫初始化後沒有任何表格
 - 解決：
   1. `main.py` CORS 改為 `allow_origins=["*"]`
   2. 建立 `initdb/01_create_tables.sql` 讓資料庫自動初始化
@@ -310,11 +333,13 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 ![Compose CORS 500 錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/compose-cors-500-error.png)
 
 **問題 8：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
-- 原因：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
+- 緣由：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
+- 原因：VS Code 的 port forwarding 自動偵測機制是掃描程式的 stdout 輸出；port 80 需要 root 權限監聽，且 nginx 不在 stdout 輸出 "Listening on port 80"，兩個條件都導致自動偵測失敗
 - 解決：在 VS Code Ports 分頁手動加入 port 80，VS Code 自動分配 Mac 上的隨機 port（如 :62178）對應
 
 **問題 9：Railway 只部署 FastAPI，沒有跑完整 Compose**
-- 原因：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
+- 緣由：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
+- 原因：Railway 平台掃描 repo 結構時，偵測到 Dockerfile 就執行單一容器部署；docker-compose.yml 是為自行管理 VPS 設計的，Railway 的多服務管理有自己的平台機制
 - 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
 
 ### 學到的概念
@@ -417,17 +442,20 @@ db-data Volume（資料持久化）
 ### 遇到的問題與解決
 
 **問題 1：非當月日期變白色、導覽按鈕消失**
-- 原因 A：Vite 建立專案時自動產生的 `index.css` 含有 `color-scheme: light dark`，系統深色模式下會把頁面背景變黑，蓋掉月曆顏色
-- 原因 B：`index.css` 的 `#root { text-align: center }` 影響月曆排版
+- 緣由 A：Vite 建立專案時自動產生的 `index.css` 含有 `color-scheme: light dark`，系統深色模式下會把頁面背景變黑，蓋掉月曆顏色
+- 緣由 B：`index.css` 的 `#root { text-align: center }` 影響月曆排版
+- 原因：Vite 預設模板的 `index.css` 是設計給示範頁面用的，包含會影響全域排版的 CSS（`color-scheme`、`#root` 樣式）；直接使用模板而不清理，這些全域樣式會與第三方元件（react-big-calendar）的樣式產生衝突
 - 解決：清除 `index.css` 的模板內容，只保留 `body { margin: 0 }`
 - 補充：安裝 antd 後也會有 CSS 衝突，在 `App.css` 加 override 修正 `.rbc-off-range` 和 toolbar 按鈕樣式
 
 **問題 2：自訂 toolbar 按鈕點下去沒反應**
-- 原因：月曆的 view 狀態沒有被外部控制，換成自訂 toolbar 後按鈕觸發的 `onView` 無法更新畫面
+- 緣由：月曆的 view 狀態沒有被外部控制，換成自訂 toolbar 後按鈕觸發的 `onView` 無法更新畫面
+- 原因：react-big-calendar 在沒有外部傳入 `view` prop 時自己維護 view 狀態（uncontrolled component）；換成自訂 toolbar 後按鈕仍呼叫 `onView` callback，但沒有 state 接住這個更新，React 不知道需要重新 render
 - 解決：加入 `const [currentView, setCurrentView] = useState('month')`，並傳給 Calendar
 
 **問題 3：`git push` 從我的 shell 執行失敗**
-- 原因：我的 shell 是非互動模式，沒有 TTY，git 無法提示輸入帳號密碼
+- 緣由：我的 shell 是非互動模式，沒有 TTY，git 無法提示輸入帳號密碼
+- 原因：git 的 HTTPS credential helper 設計為在 TTY（終端機）上互動式輸入帳密；Claude 的 shell 是非互動的 subprocess，沒有 TTY，credential helper 無法開啟輸入介面，認證中途中斷
 - VS Code 的終端機有存取 credential cache 的權限，所以從終端機 push 正常
 - 結論：git push 需要由使用者自己在終端機執行
 
