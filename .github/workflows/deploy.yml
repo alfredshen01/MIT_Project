@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'main.py'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'pyproject.toml'
+      - 'alembic/**'
+      - 'frontend/**'
 
 jobs:
   deploy:

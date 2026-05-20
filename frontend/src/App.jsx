@@ -53,9 +53,8 @@ export default function App() {
     setToken(null)
   }
 
-  const fetchEvents = (currentToken) => {
-    const headers = { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' }
-    fetch(`${API}/events`, { headers })
+  const fetchEvents = () => {
+    fetch(`${API}/events`, { headers: authHeaders })
       .then(res => {
         if (res.status === 401) { handleLogout(); return [] }
         return res.json()
@@ -76,7 +75,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (token) fetchEvents(token)
+    if (token) fetchEvents()
   }, [token])
 
   if (!token) return <Login onLogin={handleLogin} />

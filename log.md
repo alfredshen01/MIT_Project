@@ -22,6 +22,10 @@
 - 所有 events 端點加上 JWT middleware，只能存取自己的資料
 - 新增前端登入/註冊頁面（`Login.jsx`），登入後儲存 token 到 localStorage
 - 成功部署認證功能到 Droplet，第一個使用者建立成功
+- 將 `SECRET_KEY` 等機密從 `docker-compose.yml` 移除，改用 `env_file: .env`，並更新 `.gitignore`
+- 將使用者帳號欄位從 `email` 改為 `username`（前端 label、後端 model、SQL、Alembic migration 四處同步修改）
+- 修復 `fetchEvents()` 缺參數 bug，改為直接使用 `authHeaders`
+- `deploy.yml` 加入 `paths` 過濾，只有程式碼變動才觸發部署，改 log.md 不再觸發
 
 ![第一個使用者建立成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/first-user-create.png)
 
@@ -37,7 +41,22 @@
 
 ![passlib bcrypt 相容性錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/passlib-bcrypt-compatibility-error.png)
 
-**問題 3：登入或登出後頁面變空白，重新整理才正常**
+**問題 3：推送後 GitHub Actions 自動部署失敗（Droplet 找不到 .env）**
+- 原因：`docker-compose.yml` 改用 `env_file: .env` 後，Docker 啟動時去找 `/root/MIT_Project/.env`，但這個檔案從來沒有被建立過（`.env` 在 `.gitignore` 裡，不會跟著 git 走）
+- 解決：SSH 進 Droplet，手動建立 `.env` 填入生產環境的機密，再重新執行 `docker compose up -d --build`
+- 學到：`.env` 需要在每台機器上**手動建立一次**，不會自動同步
+
+**問題 5：新增/編輯/刪除事件後自動登出**
+- 原因：`fetchEvents(currentToken)` 需要外部傳入 JWT token，但新增/編輯/刪除操作完成後呼叫的是 `fetchEvents()`（沒有傳參數）。`currentToken` 變成 `undefined`，導致 Authorization header 變成 `Bearer undefined`，伺服器收到無效 token 回 401，觸發自動登出
+- 根本問題：同一份 JWT token 存在兩個地方（component state 的 `token` 和函式參數的 `currentToken`），兩者沒有同步，呼叫時容易漏傳
+- 解決：移除 `currentToken` 參數，改為直接使用 component 範圍內已有的 `authHeaders`（它內含 `token` state）。函式透過 closure 直接讀取外層變數，不需要外部傳入，任何地方呼叫都不會出錯
+- 原則：同一份資料只存一個地方，不要在函式參數和外層 state 之間重複傳遞
+
+**問題 6：每次 push log.md 都觸發不必要的部署**
+- 原因：`deploy.yml` 只要 push 到 main 就觸發，不管改的是什麼檔案
+- 解決：加入 `paths` 過濾，只有 `main.py`、`Dockerfile`、`docker-compose.yml`、`pyproject.toml`、`alembic/`、`frontend/` 變動才觸發部署
+
+**問題 7：登入或登出後頁面變空白，重新整理才正常**
 - 原因：`useEffect` 寫在 `if (!token) return <Login />` 之後，違反 React Hooks 規則——hooks 必須在所有 return 之前被呼叫，順序不一致導致 React 狀態混亂
 - 解決：將 `useEffect` 移到條件判斷之前，並讓 `useEffect` 依賴 `token`，登入後自動 fetch 資料
 
@@ -81,6 +100,10 @@
 - `.env` 只存在伺服器本機，`git pull` 不會刪它，`git push` 也不會上傳它
 - git 的「無視」是雙向的：不追蹤的檔案，push 不上去、pull 不會刪掉、`git status` 也不顯示
 
+**Linux 隱藏檔**
+- 檔名以 `.` 開頭的檔案是隱藏檔（如 `.env`、`.gitignore`）
+- `ls` 預設不顯示隱藏檔，要加 `-a` 參數才看得到：`ls -la`
+
 **React Hooks 規則**
 - Hooks（`useState`、`useEffect` 等）必須在 component 頂層呼叫
 - 不能放在條件判斷（`if`）或提前 `return` 之後
@@ -92,10 +115,11 @@
 - 正常重新部署用前者，想完全重置才用後者
 
 ### 今日小結
-完成完整使用者認證流程——Alembic migration、JWT、bcrypt 到前端整合——並成功部署，第一個真實使用者建立成功。
+完成完整使用者認證流程——Alembic migration、JWT、bcrypt 到前端整合——並成功部署；事後進行安全審查，修復機密洩漏、fetchEvents bug、CI/CD 過度觸發等多個問題。
 
 ### 下次待辦
 - [ ] 設定防火牆，只開放 port 80 和 8000
+- [ ] 確認 Droplet 部署正常、以新帳號重新註冊登入
 
 ---
 
