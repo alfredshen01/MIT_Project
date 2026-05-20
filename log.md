@@ -8,8 +8,7 @@
 | Docker 容器化 | ✅ 完成 |
 | 雲端部署（DigitalOcean Droplet） | ✅ 完成 |
 | CI/CD 自動部署（GitHub Actions） | ✅ 完成 |
-| 使用者認證（JWT + bcrypt） | ✅ 完成 |
-| 防火牆設定（port 80 / 8000） | 🔲 待辦 |
+| 使用者功能 | ✅ 完成 |
 
 ---
 
