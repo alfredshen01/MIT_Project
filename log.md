@@ -77,11 +77,20 @@
 1. **取得網域**：從 Namecheap（GitHub Student Pack）申請免費 `.me` 網域
 2. **設定 DNS**：在 Namecheap 後台新增 A Record，將網域指向 Droplet IP；刪除舊有的衝突 record（GitHub Pages 的 185.199.x.x）
 3. **準備 nginx**：建立 `nginx.conf`，設定 port 80 服務 ACME 驗證路徑（`/.well-known/acme-challenge/`）；更新 Dockerfile 將 nginx.conf 複製進容器
-4. **更新 docker-compose.yml**：加入 certbot 服務、開放 port 443、建立兩個共享 Volume（`certbot-www` 供驗證用、`certbot-certs` 存憑證）
-5. **部署並申請憑證**：push 後 CI/CD 自動部署；SSH 進 Droplet，先執行 `--dry-run` 測試，通過後正式申請憑證
-6. **啟用 HTTPS**：更新 nginx.conf 加入 port 443 server block 和 SSL 憑證路徑，port 80 改為 redirect 到 HTTPS
+4. **更新 docker-compose.yml**：加入 certbot 服務、開放 port 443、建立兩個共享 Volume（`certbot-www` 供驗證用、`certbot-certs` 存憑證）；nginx 和 certbot 容器掛載同一個 `certbot-certs` Volume，certbot 寫入憑證後 nginx 直接讀取，不需要手動複製
+5. **部署並申請憑證**：push 後 CI/CD 自動部署；SSH 進 Droplet，先執行 `--dry-run` 測試，通過後正式申請憑證；憑證自動寫入 Volume
+6. **啟用 HTTPS**：更新 nginx.conf 加入 port 443 server block 和 SSL 憑證路徑，port 80 改為 redirect 到 HTTPS；這是**唯一需要手動設定的地方**，之後憑證續期都不需要改 nginx.conf
 7. **修復混合內容**：前端改為 HTTPS 後，原本 HTTP 的 API 請求被瀏覽器擋掉；在 nginx 加入 `/api/` proxy，讓 API 走同一個 HTTPS 網域
-8. **設定自動續期**：用 `crontab -e` 加入每天兩次的 certbot renew 指令，並在續期後 reload nginx
+8. **設定自動續期**：用 `crontab -e` 加入每天兩次的 certbot renew 指令，並在續期後 reload nginx（`nginx -s reload` 讓 nginx 重新讀取新憑證，不需要重啟容器）
+
+> 參考：[Certbot 自動續期設定](https://eff-certbot.readthedocs.io/using.html#setting-up-automated-renewal)
+
+**certbot 與 nginx 的 Volume 共享機制**
+- docker-compose.yml 頂層的 `volumes:` 只是宣告 Volume 存在，真正的共享發生在兩個服務都掛載同一個 Volume 時
+- certbot 容器把 `certbot-certs` 掛在 `/etc/letsencrypt`，申請到的憑證寫入這個路徑
+- nginx 容器也把同一個 `certbot-certs` 掛在 `/etc/letsencrypt`，因此直接讀得到 certbot 寫的憑證
+- nginx.conf 裡的 `ssl_certificate /etc/letsencrypt/live/.../fullchain.pem` 只是**告訴 nginx 路徑**，不是手動貼憑證內容
+- 憑證續期後只需 `nginx -s reload` 讓 nginx 重新讀取，不需要任何手動複製
 
 **Mixed Content Policy（混合內容政策）**
 - HTTPS 頁面不能發出 HTTP 請求，瀏覽器會直接擋掉
