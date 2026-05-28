@@ -12,6 +12,109 @@
 
 ---
 
+## 2026-05-29
+
+### 完成項目
+- 改善學習日誌結構：新增「今日小結」、「待釐清」章節，新增全局進度表，修合 5/18 重複章節，統一各天章節順序
+- 從 Namecheap（GitHub Student Pack）申請免費網域 `mit-project.me`
+- 設定 DNS A Record 將 `mit-project.me` 和 `www.mit-project.me` 指向 Droplet IP
+- 建立 `frontend/nginx.conf`，設定 ACME 驗證路徑與 HTTP → HTTPS 跳轉
+- 更新 `docker-compose.yml`，加入 certbot 服務與兩個 Volume（certbot-www、certbot-certs）
+- 成功申請 Let's Encrypt SSL 憑證（有效至 2026-08-26）
+
+![申請憑證成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/申請憑證成功.png)
+
+- nginx 加入 HTTPS server block，啟用 SSL 憑證
+- nginx 加入 `/api/` proxy，讓前端 API 請求走同一個 HTTPS 網域
+- 更新 `.env.production`，`VITE_API_URL` 改為 `https://mit-project.me/api`
+- 設定 cron job，每天 00:00 和 12:00 自動檢查並續期憑證
+
+### 遇到的問題與解決
+
+**問題 1：Let's Encrypt dry-run 回傳 "Service busy; retry later"**
+- 緣由：第一次執行 dry-run 時收到服務繁忙錯誤，無法完成
+- 原因：Let's Encrypt ACME 伺服器有請求頻率限制，偶爾在高峰期暫時拒絕新請求
+- 解決：等待 1-2 分鐘後重試，成功通過
+
+**問題 2：HTTPS 設定完成後 Safari 顯示「找不到伺服器」**
+- 緣由：HTTPS 部署後，Safari 正常視窗無法開啟網站，無痕視窗可以；Chrome 也正常
+- 原因：Safari 快取了之前連線失敗的 DNS 狀態，正常視窗讀到舊記錄；無痕視窗沒有快取所以繞過
+- 解決：在 Mac 終端機執行 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder` 清除系統 DNS 快取
+
+**問題 3：改為 HTTPS 後登入功能失效**
+- 緣由：網站改為 HTTPS 後，登入與所有 API 呼叫失敗
+- 原因：前端跑在 HTTPS，但 `.env.production` 的 `VITE_API_URL` 仍是 `http://...`；瀏覽器的混合內容政策（Mixed Content Policy）會自動擋掉 HTTPS 頁面發出的 HTTP 請求
+- 解決：在 nginx 加入 `/api/` proxy location 讓 API 走同一個 HTTPS 網域；更新 `VITE_API_URL` 為 `https://mit-project.me/api`
+
+### 學到的概念
+
+**為什麼需要 HTTPS / TLS**
+- HTTP 是明文傳輸，中間任何一個節點（路由器、ISP、同網路的人）都可以讀到內容
+- TLS（Transport Layer Security）在 HTTP 之上加一層加密，HTTPS = HTTP over TLS
+- 實際影響：使用者登入時送出的帳密、JWT token，走 HTTP 都是裸奔狀態，任何人都能攔截
+- 除了加密，TLS 也驗證伺服器身份（憑證由可信任的 CA 簽發），防止中間人偽裝成你的伺服器
+- 現代瀏覽器對 HTTP 網站標示「不安全」，部分 API（如地理位置、Push Notification）也強制要求 HTTPS
+
+**Let's Encrypt vs Cloudflare**
+
+| | Let's Encrypt | Cloudflare |
+|---|---|---|
+| SSL 在哪裡終止 | 你自己的伺服器 | Cloudflare 的伺服器 |
+| 流量路徑 | 使用者 → 你的 Droplet | 使用者 → Cloudflare → 你的 Droplet |
+| 附加功能 | 無 | CDN、DDoS 防護、防火牆 |
+| Docker 整合 | 需要掛載憑證進容器 | 不需要動容器 |
+| 適合場景 | 學習、理解底層 SSL 運作 | 生產環境、需要額外防護 |
+
+**為什麼 HTTPS 需要網域（不能用裸 IP）**
+- Let's Encrypt 驗證你擁有網域的方式：把一個驗證檔放進你的伺服器，再從外部用網域去讀那個檔案
+- 這個驗證流程以「網域名稱」為主體，IP 位址沒有對應的驗證機制
+- 因此 Let's Encrypt 不支援幫裸 IP 發憑證，必須先有網域
+
+**完整 HTTPS 上線流程**
+
+需要三個東西：網域名稱 + SSL 憑證 + 伺服器設定（nginx）
+
+1. **取得網域**：從 Namecheap（GitHub Student Pack）申請免費 `.me` 網域
+2. **設定 DNS**：在 Namecheap 後台新增 A Record，將網域指向 Droplet IP；刪除舊有的衝突 record（GitHub Pages 的 185.199.x.x）
+3. **準備 nginx**：建立 `nginx.conf`，設定 port 80 服務 ACME 驗證路徑（`/.well-known/acme-challenge/`）；更新 Dockerfile 將 nginx.conf 複製進容器
+4. **更新 docker-compose.yml**：加入 certbot 服務、開放 port 443、建立兩個共享 Volume（`certbot-www` 供驗證用、`certbot-certs` 存憑證）
+5. **部署並申請憑證**：push 後 CI/CD 自動部署；SSH 進 Droplet，先執行 `--dry-run` 測試，通過後正式申請憑證
+6. **啟用 HTTPS**：更新 nginx.conf 加入 port 443 server block 和 SSL 憑證路徑，port 80 改為 redirect 到 HTTPS
+7. **修復混合內容**：前端改為 HTTPS 後，原本 HTTP 的 API 請求被瀏覽器擋掉；在 nginx 加入 `/api/` proxy，讓 API 走同一個 HTTPS 網域
+8. **設定自動續期**：用 `crontab -e` 加入每天兩次的 certbot renew 指令，並在續期後 reload nginx
+
+**Mixed Content Policy（混合內容政策）**
+- HTTPS 頁面不能發出 HTTP 請求，瀏覽器會直接擋掉
+- 解法：讓所有請求走同一個 HTTPS 網域，透過 nginx proxy 轉發到後端
+
+**nginx proxy_pass**
+- `location /api/ { proxy_pass http://api:8000/; }` — 把 `/api/` 開頭的請求轉發到 FastAPI 容器
+- trailing slash 很重要：`proxy_pass http://api:8000/` 會把 `/api/` 前綴去掉，`/api/events` → `http://api:8000/events`
+
+**cron job 語法**
+- `0 0,12 * * *` — 每天 00:00 和 12:00 執行
+- Let's Encrypt 憑證剩不到 1/3 有效期（30 天）才會真的續期，否則跳過
+- 可用 `grep certbot /var/log/syslog` 確認 cron 是否有執行
+
+![用nano建立crontab](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/用nano建立crontab.png)
+
+**GitHub Student Pack 網域福利**
+- Namecheap：免費 `.me` 網域第一年（附免費 SSL 憑證，但 Let's Encrypt 更方便）
+- Name.com：免費網域，可選 `.dev`、`.app` 等 25 種以上 TLD，但 `.dev`/`.app` 強制 HTTPS
+
+### 今日小結
+從申請網域、設定 DNS、申請 SSL 憑證、到修復混合內容，完整走過一遍 HTTPS 上線流程；網站現在可透過 `https://mit-project.me` 存取。
+
+### 待釐清
+- crontab 是否有成功儲存（執行時出現 "no crontab for root"，需明天確認 `crontab -l` 的輸出）
+- 明天 00:00 或 12:00 後執行 `grep certbot /var/log/syslog` 確認 cron job 有真的跑
+
+### 下次待辦
+- [ ] 確認 cron job log（明天 00:00/12:00 後）
+- [ ] 設定防火牆，只開放 port 80 和 443（8000 改走 nginx proxy 後可關閉對外）
+
+---
+
 ## 2026-05-20
 
 ### 完成項目
