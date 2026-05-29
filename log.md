@@ -15,6 +15,8 @@
 ## 2026-05-29
 
 ### 完成項目
+- 更換網站 favicon：加入 ChatGPT 生成的完整 favicon pack（多尺寸 PNG + ICO + apple-touch-icon），更新 `index.html` 同時引用多種格式提升跨瀏覽器相容性
+- 在 VM 上生成 ed25519 SSH key，加入 GitHub，將 git remote 從 HTTPS 改為 SSH 格式，解決 push 認證問題
 - 改善學習日誌結構：新增「今日小結」、「待釐清」章節，新增全局進度表，修合 5/18 重複章節，統一各天章節順序
 - 從 Namecheap（GitHub Student Pack）申請免費網域 `mit-project.me`
 - 設定 DNS A Record 將 `mit-project.me` 和 `www.mit-project.me` 指向 Droplet IP
@@ -28,25 +30,67 @@
 - nginx 加入 `/api/` proxy，讓前端 API 請求走同一個 HTTPS 網域
 - 更新 `.env.production`，`VITE_API_URL` 改為 `https://mit-project.me/api`
 - 設定 cron job，每天 00:00 和 12:00 自動檢查並續期憑證
+- 確認 cron job 正常運作：透過 `grep certbot /var/log/syslog` 驗證 2026-05-29 00:00 UTC 準時執行，certbot 檢查憑證期限後跳過（憑證剩 88 天，未達 30 天續期門檻）
+
+![確認certbot log檢查憑證期限](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/確認certbot log檢查憑證期限.png)
 
 ### 遇到的問題與解決
 
-**問題 1：Let's Encrypt dry-run 回傳 "Service busy; retry later"**
+**問題 1：git push 失敗（HTTPS 認證）**
+- 緣由：執行 `git push` 時報錯 `could not read Username for 'https://github.com'`
+- 原因：這台 VM 是新環境，git remote URL 是 HTTPS 格式，但 HTTPS push 需要帳號 + PAT 認證；Claude Code 的 shell 是非互動模式，沒有 TTY，credential helper 無法開啟輸入介面
+- 解決：改用 SSH 格式（`git remote set-url origin git@github.com:...`），用金鑰認證取代帳密
+
+**問題 2：SSH 連線失敗（Host key verification failed）**
+- 緣由：第一次連 `git@github.com` 時報 `Host key verification failed`
+- 原因：`~/.ssh/known_hosts` 裡沒有 GitHub 伺服器的指紋，SSH 無法確認對方身份，拒絕連線
+- 解決：執行 `ssh-keyscan github.com >> ~/.ssh/known_hosts` 將 GitHub 主機金鑰加入信任清單
+
+**問題 3：SSH 連線失敗（Permission denied publickey）**
+- 緣由：加入 known_hosts 後仍報 `Permission denied (publickey)`
+- 原因：這台 VM 從未生成過 SSH 金鑰，`~/.ssh/` 只有 `authorized_keys`（控制誰能 SSH 進來）和 `known_hosts`，沒有私鑰；GitHub 上之前放的公鑰是另一台機器生成的，本機沒有對應私鑰，無法配對
+- 解決：在 VM 執行 `ssh-keygen -t ed25519 -C "alfredshen01@gmail.com"` 生成新金鑰，將公鑰加入 GitHub SSH Keys
+
+**問題 4：Let's Encrypt dry-run 回傳 "Service busy; retry later"**
 - 緣由：第一次執行 dry-run 時收到服務繁忙錯誤，無法完成
 - 原因：Let's Encrypt ACME 伺服器有請求頻率限制，偶爾在高峰期暫時拒絕新請求
 - 解決：等待 1-2 分鐘後重試，成功通過
 
-**問題 2：HTTPS 設定完成後 Safari 顯示「找不到伺服器」**
+**問題 5：HTTPS 設定完成後 Safari 顯示「找不到伺服器」**
 - 緣由：HTTPS 部署後，Safari 正常視窗無法開啟網站，無痕視窗可以；Chrome 也正常
 - 原因：Safari 快取了之前連線失敗的 DNS 狀態，正常視窗讀到舊記錄；無痕視窗沒有快取所以繞過
 - 解決：在 Mac 終端機執行 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder` 清除系統 DNS 快取
 
-**問題 3：改為 HTTPS 後登入功能失效**
+**問題 6：改為 HTTPS 後登入功能失效**
 - 緣由：網站改為 HTTPS 後，登入與所有 API 呼叫失敗
 - 原因：前端跑在 HTTPS，但 `.env.production` 的 `VITE_API_URL` 仍是 `http://...`；瀏覽器的混合內容政策（Mixed Content Policy）會自動擋掉 HTTPS 頁面發出的 HTTP 請求
 - 解決：在 nginx 加入 `/api/` proxy location 讓 API 走同一個 HTTPS 網域；更新 `VITE_API_URL` 為 `https://mit-project.me/api`
 
 ### 學到的概念
+
+**Favicon**
+- 網站 tab 上顯示的小圖示，可用 SVG / PNG / ICO 格式
+- `<link rel="icon">` 放在 `<head>` 裡指定路徑
+- 可同時設多個格式，瀏覽器自動選最適合的
+- ICO 格式可打包多個尺寸，相容性最好；SVG 無限縮放不失真；PNG 最常用
+- 建議尺寸：16×16、32×32、48×48、64×64；從大到小設計
+- 圖片要放在 `frontend/public/` 才能被網站存取（Vite 靜態資源資料夾）
+
+**SSH 金鑰認證 vs HTTPS 認證**
+- HTTPS：每次 push 需要帳號 + Personal Access Token（GitHub 已不支援密碼）
+- SSH：本機有私鑰、GitHub 上有對應公鑰，push 時自動配對，不需輸入任何東西
+- SSH 金鑰是全域的，同一台機器所有 git repo 共用，只需設定一次
+
+**SSH 金鑰檔案說明**
+- `id_ed25519`：私鑰，只存在本機，不能外洩
+- `id_ed25519.pub`：公鑰，可以放到 GitHub / 任何伺服器
+- `known_hosts`：記錄曾連線過的主機指紋，防止中間人攻擊
+- `authorized_keys`：控制哪些公鑰可以 SSH **進來這台機器**，與 push 到 GitHub 無關
+
+**ssh-keygen 指令**
+- `-t ed25519`：指定演算法，ed25519 是目前最推薦的（比 RSA 更安全、更短）
+- `-C "email"`：附加備註，方便日後識別這把金鑰是誰的、哪台機器的，不影響功能
+- passphrase：保護私鑰的第二道密碼，個人開發機通常不設，避免每次 push 都要輸入
 
 **為什麼需要 HTTPS / TLS**
 - HTTP 是明文傳輸，中間任何一個節點（路由器、ISP、同網路的人）都可以讀到內容
@@ -112,14 +156,10 @@
 - Name.com：免費網域，可選 `.dev`、`.app` 等 25 種以上 TLD，但 `.dev`/`.app` 強制 HTTPS
 
 ### 今日小結
-從申請網域、設定 DNS、申請 SSL 憑證、到修復混合內容，完整走過一遍 HTTPS 上線流程；網站現在可透過 `https://mit-project.me` 存取。
-
-### 待釐清
-- crontab 是否有成功儲存（執行時出現 "no crontab for root"，需明天確認 `crontab -l` 的輸出）
-- 明天 00:00 或 12:00 後執行 `grep certbot /var/log/syslog` 確認 cron job 有真的跑
+從申請網域、設定 DNS、申請 SSL 憑證、到修復混合內容，完整走過一遍 HTTPS 上線流程；另設定 SSH 金鑰解決 git push 認證問題，並更換網站 favicon。
 
 ### 下次待辦
-- [ ] 確認 cron job log（明天 00:00/12:00 後）
+- [x] 確認 cron job log（明天 00:00/12:00 後）
 - [ ] 設定防火牆，只開放 port 80 和 443（8000 改走 nginx proxy 後可關閉對外）
 
 ---
