@@ -23,45 +23,30 @@
 - 建立 `frontend/nginx.conf`，設定 ACME 驗證路徑與 HTTP → HTTPS 跳轉
 - 更新 `docker-compose.yml`，加入 certbot 服務與兩個 Volume（certbot-www、certbot-certs）
 - 成功申請 Let's Encrypt SSL 憑證（有效至 2026-08-26）
-
-![申請憑證成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/申請憑證成功.png)
-
 - nginx 加入 HTTPS server block，啟用 SSL 憑證
 - nginx 加入 `/api/` proxy，讓前端 API 請求走同一個 HTTPS 網域
 - 更新 `.env.production`，`VITE_API_URL` 改為 `https://mit-project.me/api`
 - 設定 cron job，每天 00:00 和 12:00 自動檢查並續期憑證
 - 確認 cron job 正常運作：透過 `grep certbot /var/log/syslog` 驗證 2026-05-29 00:00 UTC 準時執行，certbot 檢查憑證期限後跳過（憑證剩 88 天，未達 30 天續期門檻）
 
-![確認certbot log檢查憑證期限](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/確認certbot log檢查憑證期限.png)
-
 ### 遇到的問題與解決
 
-**問題 1：git push 失敗（HTTPS 認證）**
-- 緣由：執行 `git push` 時報錯 `could not read Username for 'https://github.com'`
-- 原因：這台 VM 是新環境，git remote URL 是 HTTPS 格式，但 HTTPS push 需要帳號 + PAT 認證；Claude Code 的 shell 是非互動模式，沒有 TTY，credential helper 無法開啟輸入介面
-- 解決：改用 SSH 格式（`git remote set-url origin git@github.com:...`），用金鑰認證取代帳密
+**問題 1：VM 無法 git push 到 GitHub**
+- 緣由：執行 `git push` 時認證失敗；改用 SSH 後又依序碰到 `Host key verification failed` 和 `Permission denied (publickey)`
+- 原因：這台 VM 是新環境，三個問題連環：remote URL 是 HTTPS（需要 PAT）→ 改 SSH 後 known_hosts 沒有 GitHub 指紋 → 指紋加了但本機從未生成過 SSH 金鑰，`~/.ssh/` 沒有私鑰，GitHub 上的公鑰是另一台機器的
+- 解決：生成新金鑰（`ssh-keygen -t ed25519`）→ 將公鑰加入 GitHub SSH Keys → `ssh-keyscan github.com >> ~/.ssh/known_hosts` → `git remote set-url origin git@github.com:...`
 
-**問題 2：SSH 連線失敗（Host key verification failed）**
-- 緣由：第一次連 `git@github.com` 時報 `Host key verification failed`
-- 原因：`~/.ssh/known_hosts` 裡沒有 GitHub 伺服器的指紋，SSH 無法確認對方身份，拒絕連線
-- 解決：執行 `ssh-keyscan github.com >> ~/.ssh/known_hosts` 將 GitHub 主機金鑰加入信任清單
-
-**問題 3：SSH 連線失敗（Permission denied publickey）**
-- 緣由：加入 known_hosts 後仍報 `Permission denied (publickey)`
-- 原因：這台 VM 從未生成過 SSH 金鑰，`~/.ssh/` 只有 `authorized_keys`（控制誰能 SSH 進來）和 `known_hosts`，沒有私鑰；GitHub 上之前放的公鑰是另一台機器生成的，本機沒有對應私鑰，無法配對
-- 解決：在 VM 執行 `ssh-keygen -t ed25519 -C "alfredshen01@gmail.com"` 生成新金鑰，將公鑰加入 GitHub SSH Keys
-
-**問題 4：Let's Encrypt dry-run 回傳 "Service busy; retry later"**
+**問題 2：Let's Encrypt dry-run 回傳 "Service busy; retry later"**
 - 緣由：第一次執行 dry-run 時收到服務繁忙錯誤，無法完成
 - 原因：Let's Encrypt ACME 伺服器有請求頻率限制，偶爾在高峰期暫時拒絕新請求
 - 解決：等待 1-2 分鐘後重試，成功通過
 
-**問題 5：HTTPS 設定完成後 Safari 顯示「找不到伺服器」**
+**問題 3：HTTPS 設定完成後 Safari 顯示「找不到伺服器」**
 - 緣由：HTTPS 部署後，Safari 正常視窗無法開啟網站，無痕視窗可以；Chrome 也正常
 - 原因：Safari 快取了之前連線失敗的 DNS 狀態，正常視窗讀到舊記錄；無痕視窗沒有快取所以繞過
 - 解決：在 Mac 終端機執行 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder` 清除系統 DNS 快取
 
-**問題 6：改為 HTTPS 後登入功能失效**
+**問題 4：改為 HTTPS 後登入功能失效**
 - 緣由：網站改為 HTTPS 後，登入與所有 API 呼叫失敗
 - 原因：前端跑在 HTTPS，但 `.env.production` 的 `VITE_API_URL` 仍是 `http://...`；瀏覽器的混合內容政策（Mixed Content Policy）會自動擋掉 HTTPS 頁面發出的 HTTP 請求
 - 解決：在 nginx 加入 `/api/` proxy location 讓 API 走同一個 HTTPS 網域；更新 `VITE_API_URL` 為 `https://mit-project.me/api`
@@ -151,6 +136,8 @@
 
 ![用nano建立crontab](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/用nano建立crontab.png)
 
+![確認certbot-log檢查憑證期限](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260529/確認certbot_log檢查憑證期限.png)
+
 **GitHub Student Pack 網域福利**
 - Namecheap：免費 `.me` 網域第一年（附免費 SSL 憑證，但 Let's Encrypt 更方便）
 - Name.com：免費網域，可選 `.dev`、`.app` 等 25 種以上 TLD，但 `.dev`/`.app` 強制 HTTPS
@@ -182,8 +169,6 @@
 - 使用 Ant Design `ConfigProvider` 設定全局主題顏色（`colorPrimary`、`colorBorder`）
 - push frontend 改動，成功驗證完整 CI/CD 流程（paths 過濾 → 自動 build → 容器重建 → 部署）
 
-![第一個使用者建立成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/first-user-create.png)
-
 ### 遇到的問題與解決
 
 **問題 1：部署後 Alembic 嘗試建立已存在的 events 表**
@@ -197,6 +182,8 @@
 - 解決：移除 `passlib`，改為直接使用 `bcrypt` 套件（`bcrypt.hashpw` / `bcrypt.checkpw`）
 
 ![passlib bcrypt 相容性錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/passlib-bcrypt-compatibility-error.png)
+
+![第一個使用者建立成功](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260519/first-user-create.png)
 
 **問題 3：推送後 GitHub Actions 自動部署失敗（Droplet 找不到 .env）**
 - 緣由：`docker-compose.yml` 改用 `env_file: .env` 後，Docker 啟動時去找 `/root/MIT_Project/.env`，但這個檔案從來沒有被建立過（`.env` 在 `.gitignore` 裡，不會跟著 git 走）
@@ -416,8 +403,6 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 - 建立 `initdb/01_create_tables.sql`，讓 PostgreSQL 第一次啟動時自動建立 events 資料表
 - 在 Railway 完成初步部署，FastAPI 成功上線
 
-![容器資料庫驗證](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/Database-check.png)
-
 ### 遇到的問題與解決
 
 **問題 1：同時出現 port :5173 和 :5174，:5174 是空的（CORS 問題）**
@@ -463,18 +448,12 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 |---|---|
 | ![vm-nospaceleft](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospaceleft.png) | ![vm-nospace-solve](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/vm-nospace-solve.png) |
 
-**問題 5：`docker system prune -a` 把自訂網路和容器一起刪掉**
-- 緣由：`prune -a` 會刪除所有未使用的資源，`mit-db` 容器當時是 `Exited` 狀態，被判定為未使用，連帶把 `my-network` 也刪了
-- 原因：`docker system prune -a` 以「是否有 Running 狀態的容器使用」作為判斷標準；`Exited` 的容器和沒有 Running 容器附掛的自訂網路都被視為未使用，在不熟悉清除範圍的情況下執行是高風險操作
-- 解決：重新建立網路和容器；Volume `mit-db-data` 不受影響，資料保留
-- 學到：`docker system prune -a` 是高風險指令，執行前要確認哪些資源會被刪除
+**問題 5：`docker system prune -a` 誤刪網路，導致容器無法啟動**
+- 緣由：執行 `prune -a` 清理空間，`mit-db` 容器是 `Exited` 狀態被一併刪除，連帶刪掉 `my-network`；重建容器後狀態停在 `Created`，無法啟動
+- 原因：`docker system prune -a` 以「是否有 Running 容器使用」為標準，`Exited` 容器和沒有 Running 容器附掛的網路都被視為廢棄；容器建立時網路就已綁定，網路被刪後啟動流程無法完成
+- 解決：重新建立 `my-network`，再 `docker start mit-db`；Volume `mit-db-data` 不受影響，資料保留
 
-**問題 6：容器狀態 `Created` 但沒有啟動（網路找不到）**
-- 緣由：`my-network` 被 prune 刪除後容器嘗試啟動找不到網路，一直停在 `Created`
-- 原因：Docker 容器的網路配置在建立時就已綁定；指定的網路被刪除後，容器無法完成初始化啟動流程，等同失去了它的「網路插座」
-- 解決：重建網路後 `docker start mit-db` 成功啟動
-
-**問題 7：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
+**問題 6：Compose 啟動後新增事件失敗（CORS + 500 錯誤）**
 - 緣由：Compose 建立的是全新 Volume，`events` 資料表不存在，FastAPI 回 500；CORS 設定也需要改成 `"*"`
 - 原因：`docker compose down -v` 刪除 Volume 後，新 Volume 是完全空白的資料庫；`events` 資料表的建立 SQL 沒有放在 `initdb/` 裡，資料庫初始化後沒有任何表格
 - 解決：
@@ -484,12 +463,14 @@ VM 改 code → git push → Droplet: git pull && docker compose up -d --build
 
 ![Compose CORS 500 錯誤](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/compose-cors-500-error.png)
 
-**問題 8：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
+![容器資料庫驗證](https://raw.githubusercontent.com/alfredshen01/MIT_Project/main/log-picture/20260518/Database-check.png)
+
+**問題 7：Mac 瀏覽器連不到 nginx（port 80 沒有轉發）**
 - 緣由：VS Code 自動轉發高位 port（:5173、:8000），但 port 80 需要 root 權限，無法自動偵測
 - 原因：VS Code 的 port forwarding 自動偵測機制是掃描程式的 stdout 輸出；port 80 需要 root 權限監聽，且 nginx 不在 stdout 輸出 "Listening on port 80"，兩個條件都導致自動偵測失敗
 - 解決：在 VS Code Ports 分頁手動加入 port 80，VS Code 自動分配 Mac 上的隨機 port（如 :62178）對應
 
-**問題 9：Railway 只部署 FastAPI，沒有跑完整 Compose**
+**問題 8：Railway 只部署 FastAPI，沒有跑完整 Compose**
 - 緣由：Railway 看到根目錄有 `Dockerfile` 就直接用它部署，不會自動跑 `docker-compose.yml`
 - 原因：Railway 平台掃描 repo 結構時，偵測到 Dockerfile 就執行單一容器部署；docker-compose.yml 是為自行管理 VPS 設計的，Railway 的多服務管理有自己的平台機制
 - 學到：Railway 是「一個服務對應一個 repo」的邏輯，docker-compose.yml 是給本機開發或自己管理 VPS 用的，Railway 有自己的方式管理多服務
