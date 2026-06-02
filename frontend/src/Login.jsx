@@ -70,8 +70,8 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <span className="eyebrow">Grayscale Converter</span>
-        <h2 className="brand-title">彩色轉黑白</h2>
+        <span className="eyebrow">Welcome</span>
+        <h2 className="brand-title">Final_Project</h2>
         <Tabs items={items} onChange={() => form.resetFields()} />
       </div>
     </div>

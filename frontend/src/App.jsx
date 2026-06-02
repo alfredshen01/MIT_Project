@@ -126,6 +126,7 @@ export default function App() {
   return (
     <div className="layout">
       <aside className="sidebar">
+        <div className="sidebar-brand">Final_Project</div>
         <span className="eyebrow">Folders</span>
         <nav className="folder-list">
           {CATEGORIES.map(c => (
@@ -143,7 +144,7 @@ export default function App() {
       <main className="content">
         <div className="topbar">
           <div>
-            <span className="eyebrow">Grayscale Converter</span>
+            <span className="eyebrow">功能</span>
             <h1 className="brand-title">{activeLabel}</h1>
           </div>
           <Button onClick={handleLogout}>登出</Button>

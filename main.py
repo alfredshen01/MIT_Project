@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 from jose import JWTError, jwt
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 
@@ -118,7 +118,9 @@ async def convert_to_bw(
         raise HTTPException(status_code=400, detail="檔案不能超過 10 MB")
 
     try:
-        img = Image.open(io.BytesIO(data)).convert("L")
+        img = Image.open(io.BytesIO(data))
+        # 先依 EXIF 方向把直式照片轉正,再轉灰階(否則直式會變橫式)
+        img = ImageOps.exif_transpose(img).convert("L")
     except Exception:
         raise HTTPException(status_code=400, detail="無法解析圖片，請確認檔案格式正確")
 
