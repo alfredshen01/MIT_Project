@@ -6,13 +6,20 @@ import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ConfigProvider theme={{
-      token: {
-        colorPrimary: '#5a9a5a',
-        colorBorder: '#a0c8a0',
-        colorBorderSecondary: '#b8d8b0',
-      }
-    }}>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#111114',
+          colorBorder: '#e3e3e6',
+          colorBorderSecondary: '#ededf0',
+          colorText: '#15151a',
+          colorTextSecondary: '#86868c',
+          borderRadius: 10,
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif",
+        },
+      }}
+    >
       <App />
     </ConfigProvider>
   </StrictMode>,

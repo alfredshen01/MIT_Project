@@ -1,8 +1,27 @@
+:root {
+  --bg: #f5f5f6;
+  --surface: #ffffff;
+  --border: #e6e6e9;
+  --border-strong: #d2d2d6;
+  --text: #15151a;
+  --text-dim: #86868c;
+  --accent: #111114;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #eaf4e5;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cpath d='M20 10 Q30 0 40 10 Q30 20 20 10Z' fill='%23b8ddb0' opacity='0.35'/%3E%3Cpath d='M55 35 Q65 25 75 35 Q65 45 55 35Z' fill='%23a8d4a0' opacity='0.3'/%3E%3Cpath d='M5 55 Q15 45 25 55 Q15 65 5 55Z' fill='%23c0e0b8' opacity='0.28'/%3E%3Ccircle cx='60' cy='10' r='2.5' fill='%2390c890' opacity='0.25'/%3E%3Ccircle cx='10' cy='35' r='2' fill='%2398d098' opacity='0.22'/%3E%3Cline x1='40' y1='10' x2='40' y2='22' stroke='%23a0c8a0' stroke-width='1' opacity='0.3'/%3E%3Cline x1='65' y1='35' x2='65' y2='47' stroke='%2398c098' stroke-width='1' opacity='0.25'/%3E%3C/svg%3E");
-  background-repeat: repeat;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC',
+    'Microsoft JhengHei', sans-serif;
+  background-color: var(--bg);
+  /* 極淡點陣網格,帶一點科技質感但不搶戲 */
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

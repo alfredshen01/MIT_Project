@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react'
-import { Button, Space, Typography, Upload, message } from 'antd'
+import { useState } from 'react'
+import { Button, Space, Upload, message } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import './App.css'
 import Login from './Login'
 
-const { Title, Text } = Typography
 const { Dragger } = Upload
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -16,7 +15,6 @@ export default function App() {
   const [resultUrl, setResultUrl] = useState(null)
   const [resultFilename, setResultFilename] = useState('')
   const [loading, setLoading] = useState(false)
-  const inputRef = useRef(null)
 
   const handleLogin = (newToken) => {
     localStorage.setItem('token', newToken)
@@ -61,16 +59,16 @@ export default function App() {
         return
       }
       if (!res.ok) {
-        const err = await res.json()
-        message.error(err.detail || '轉換失敗')
+        // 後端正常時會回 JSON 錯誤;若是 nginx 502/413 等非 JSON 回應則給通用訊息
+        const detail = await res.json().then(e => e.detail).catch(() => null)
+        message.error(detail || `轉換失敗(伺服器回應 ${res.status})`)
         return
       }
       const blob = await res.blob()
-      const disposition = res.headers.get('Content-Disposition') || ''
-      const match = disposition.match(/filename="([^"]+)"/)
-      const filename = match ? match[1] : 'bw.png'
+      // 下載檔名直接由原檔名推算,保留中文等字元,不依賴 HTTP header
+      const base = file.name.replace(/\.[^.]+$/, '')
       setResultUrl(URL.createObjectURL(blob))
-      setResultFilename(filename)
+      setResultFilename(`${base}_bw.png`)
     } catch {
       message.error('連線失敗，請稍後再試')
     } finally {
@@ -81,10 +79,13 @@ export default function App() {
   if (!token) return <Login onLogin={handleLogin} />
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '2rem' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <Title level={2} style={{ margin: 0 }}>彩色轉黑白</Title>
+    <div className="shell">
+      <div className="container">
+        <div className="topbar">
+          <div>
+            <span className="eyebrow">Grayscale Converter</span>
+            <h1 className="brand-title">彩色轉黑白</h1>
+          </div>
           <Button onClick={handleLogout}>登出</Button>
         </div>
 
@@ -92,7 +93,6 @@ export default function App() {
           accept={ACCEPTED.join(',')}
           showUploadList={false}
           beforeUpload={handleFile}
-          style={{ marginBottom: '2rem' }}
         >
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
           <p className="ant-upload-text">點擊或拖曳圖片至此</p>
@@ -100,28 +100,28 @@ export default function App() {
         </Dragger>
 
         {(preview || resultUrl) && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          <div className="result-grid">
             {preview && (
-              <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', textAlign: 'center' }}>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>原圖</Text>
-                <img src={preview} alt="原圖" style={{ maxWidth: '100%', maxHeight: 400, objectFit: 'contain' }} />
+              <div className="panel">
+                <span className="panel-label">原圖</span>
+                <img className="panel-img" src={preview} alt="原圖" />
               </div>
             )}
-            <div style={{ background: '#fff', borderRadius: 8, padding: '1rem', textAlign: 'center' }}>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>黑白結果</Text>
+            <div className="panel">
+              <span className="panel-label">黑白結果</span>
               {loading ? (
-                <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-                  轉換中...
-                </div>
+                <div className="panel-loading">轉換中…</div>
               ) : resultUrl ? (
                 <>
-                  <img src={resultUrl} alt="黑白" style={{ maxWidth: '100%', maxHeight: 400, objectFit: 'contain', display: 'block', margin: '0 auto 1rem' }} />
-                  <Space>
-                    <a href={resultUrl} download={resultFilename}>
-                      <Button type="primary">下載黑白圖片</Button>
-                    </a>
-                    <Button onClick={reset}>清除</Button>
-                  </Space>
+                  <img className="panel-img" src={resultUrl} alt="黑白" />
+                  <div className="panel-actions">
+                    <Space>
+                      <a href={resultUrl} download={resultFilename}>
+                        <Button type="primary">下載黑白圖片</Button>
+                      </a>
+                      <Button onClick={reset}>清除</Button>
+                    </Space>
+                  </div>
                 </>
               ) : null}
             </div>

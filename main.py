@@ -1,6 +1,7 @@
 import io
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +31,7 @@ app.add_middleware(
     allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -113,9 +115,14 @@ async def convert_to_bw(
     img.save(output, format="PNG")
     output.seek(0)
 
-    filename = os.path.splitext(file.filename or "image")[0] + "_bw.png"
+    # 檔名可能含中文等非 ASCII 字元;HTTP header 只能用 latin-1,
+    # 因此用 RFC 5987:ASCII 安全的 filename 當 fallback,filename* 帶 UTF-8 原名
+    stem = os.path.splitext(file.filename or "image")[0]
+    out_name = f"{stem}_bw.png"
+    ascii_name = out_name.encode("ascii", "ignore").decode() or "image_bw.png"
+    disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(out_name)}"
     return StreamingResponse(
         output,
         media_type="image/png",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": disposition},
     )

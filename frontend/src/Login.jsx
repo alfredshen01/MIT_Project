@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, Form, Input, Tabs, message } from 'antd'
+import './App.css'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -33,7 +34,7 @@ export default function Login({ onLogin }) {
   }
 
   const fields = (
-    <Form form={form} layout="vertical" style={{ maxWidth: 360 }}>
+    <Form form={form} layout="vertical">
       <Form.Item name="username" label="帳號" rules={[{ required: true, message: '請輸入帳號' }]}>
         <Input />
       </Form.Item>
@@ -50,7 +51,7 @@ export default function Login({ onLogin }) {
       children: (
         <div>
           {fields}
-          <Button type="primary" loading={loading} onClick={() => handleSubmit('login')}>登入</Button>
+          <Button type="primary" block loading={loading} onClick={() => handleSubmit('login')}>登入</Button>
         </div>
       ),
     },
@@ -60,16 +61,17 @@ export default function Login({ onLogin }) {
       children: (
         <div>
           {fields}
-          <Button type="primary" loading={loading} onClick={() => handleSubmit('register')}>註冊</Button>
+          <Button type="primary" block loading={loading} onClick={() => handleSubmit('register')}>註冊</Button>
         </div>
       ),
     },
   ]
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <div style={{ width: 400, padding: '2rem', border: '1px solid #b8d8b0', borderRadius: 12, background: 'rgba(255,255,255,0.88)', boxShadow: '0 4px 16px rgba(80,140,80,0.12)' }}>
-        <h2 style={{ marginBottom: '1.5rem' }}>MIT Project 日曆</h2>
+    <div className="login-shell">
+      <div className="login-card">
+        <span className="eyebrow">Grayscale Converter</span>
+        <h2 className="brand-title">彩色轉黑白</h2>
         <Tabs items={items} onChange={() => form.resetFields()} />
       </div>
     </div>
