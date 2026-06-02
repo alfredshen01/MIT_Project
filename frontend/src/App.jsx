@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Modal, Space, Upload, message } from 'antd'
+import { Button, Dropdown, Modal, Space, Upload, message } from 'antd'
 import { InboxOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import './App.css'
 import Login from './Login'
@@ -14,13 +14,20 @@ const CATEGORIES = [
   { key: 'grayscale', label: '彩色轉黑白' },
 ]
 
+// 下載格式選單(無損 PNG / 有損 JPG)
+const DOWNLOAD_FORMATS = [
+  { key: 'png', label: '無損 PNG（檔案大、最高畫質）' },
+  { key: 'jpeg', label: '有損 JPG（檔案小、下載快）' },
+]
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [category, setCategory] = useState('grayscale')
   const [files, setFiles] = useState([])
-  const [preview, setPreview] = useState(null)
-  const [resultUrl, setResultUrl] = useState(null)
-  const [resultFilename, setResultFilename] = useState('')
+  const [preview, setPreview] = useState(null)       // 原圖(本機顯示)
+  const [resultUrl, setResultUrl] = useState(null)   // 黑白結果預覽(有損 JPEG)
+  const [resultId, setResultId] = useState(null)
+  const [resultBase, setResultBase] = useState('')   // 下載檔名(不含副檔名)
   const [loading, setLoading] = useState(false)
 
   const authFetch = (path, opts = {}) =>
@@ -41,7 +48,8 @@ export default function App() {
   const reset = () => {
     setPreview(null)
     setResultUrl(null)
-    setResultFilename('')
+    setResultId(null)
+    setResultBase('')
   }
 
   const fetchFiles = () => {
@@ -82,10 +90,10 @@ export default function App() {
         message.error(detail || `轉換失敗(伺服器回應 ${res.status})`)
         return
       }
-      const blob = await res.blob()
-      const base = file.name.replace(/\.[^.]+$/, '')
+      const blob = await res.blob()  // 有損 JPEG 預覽
       setResultUrl(URL.createObjectURL(blob))
-      setResultFilename(`${base}_bw.png`)
+      setResultId(res.headers.get('X-File-Id'))
+      setResultBase(`${file.name.replace(/\.[^.]+$/, '')}_bw`)
       fetchFiles()  // 轉好後重新載入該分類的檔案清單
     } catch {
       message.error('連線失敗,請稍後再試')
@@ -94,14 +102,15 @@ export default function App() {
     }
   }
 
-  const downloadFile = async (f) => {
-    const res = await authFetch(`/files/${f.id}/download`)
+  // 以指定格式下載某個已存檔案
+  const downloadById = async (id, format, filename) => {
+    const res = await authFetch(`/files/${id}/download?format=${format}`)
     if (!res.ok) { message.error('下載失敗'); return }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = f.original_name
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -122,6 +131,12 @@ export default function App() {
   if (!token) return <Login onLogin={handleLogin} />
 
   const activeLabel = CATEGORIES.find(c => c.key === category)?.label || ''
+
+  // 依檔案與格式產生下載選單
+  const downloadMenu = (id, base) => ({
+    items: DOWNLOAD_FORMATS,
+    onClick: ({ key }) => downloadById(id, key, `${base}.${key === 'png' ? 'png' : 'jpg'}`),
+  })
 
   return (
     <div className="layout">
@@ -173,9 +188,12 @@ export default function App() {
                   <img className="panel-img" src={resultUrl} alt="黑白" />
                   <div className="panel-actions">
                     <Space>
-                      <a href={resultUrl} download={resultFilename}>
-                        <Button type="primary">下載黑白圖片</Button>
-                      </a>
+                      <Button type="primary" onClick={() => downloadById(resultId, 'png', `${resultBase}.png`)}>
+                        下載無損 PNG
+                      </Button>
+                      <Button onClick={() => downloadById(resultId, 'jpeg', `${resultBase}.jpg`)}>
+                        下載有損 JPG
+                      </Button>
                       <Button onClick={reset}>清除</Button>
                     </Space>
                   </div>
@@ -191,18 +209,23 @@ export default function App() {
             <p className="files-empty">這個資料夾還沒有檔案,轉換一張圖片就會出現在這裡。</p>
           ) : (
             <ul className="file-list">
-              {files.map(f => (
-                <li key={f.id} className="file-row">
-                  <div className="file-meta">
-                    <span className="file-name">{f.original_name}</span>
-                    <span className="file-date">{new Date(f.created_at).toLocaleString()}</span>
-                  </div>
-                  <Space>
-                    <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadFile(f)}>下載</Button>
-                    <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteFile(f)} />
-                  </Space>
-                </li>
-              ))}
+              {files.map(f => {
+                const base = f.original_name.replace(/\.[^.]+$/, '')
+                return (
+                  <li key={f.id} className="file-row">
+                    <div className="file-meta">
+                      <span className="file-name">{f.original_name}</span>
+                      <span className="file-date">{new Date(f.created_at).toLocaleString()}</span>
+                    </div>
+                    <Space>
+                      <Dropdown menu={downloadMenu(f.id, base)} trigger={['click']}>
+                        <Button size="small" icon={<DownloadOutlined />}>下載 ▾</Button>
+                      </Dropdown>
+                      <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteFile(f)} />
+                    </Space>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>

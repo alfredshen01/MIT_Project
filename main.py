@@ -36,7 +36,7 @@ app.add_middleware(
     allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")],
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    expose_headers=["Content-Disposition", "X-File-Id"],
 )
 
 
@@ -124,30 +124,25 @@ async def convert_to_bw(
     except Exception:
         raise HTTPException(status_code=400, detail="無法解析圖片，請確認檔案格式正確")
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    png_bytes = buf.getvalue()
-
-    # 存到磁碟(隨機檔名避免衝突)並寫一筆記錄到 files 表,分類為 grayscale
+    # 無損 PNG 當主檔存起來(日後可下載無損版),分類為 grayscale
     stored_name = f"{uuid.uuid4().hex}.png"
-    with open(os.path.join(UPLOAD_DIR, stored_name), "wb") as f:
-        f.write(png_bytes)
+    img.save(os.path.join(UPLOAD_DIR, stored_name), format="PNG")
 
     stem = os.path.splitext(file.filename or "image")[0]
-    out_name = f"{stem}_bw.png"
+    original_name = f"{stem}_bw.png"
     with engine.connect() as conn:
-        conn.execute(
+        file_id = conn.execute(
             text("INSERT INTO files (user_id, category, original_name, stored_name) "
-                 "VALUES (:user_id, :category, :original_name, :stored_name)"),
-            {"user_id": user_id, "category": "grayscale", "original_name": out_name, "stored_name": stored_name},
-        )
+                 "VALUES (:user_id, :category, :original_name, :stored_name) RETURNING id"),
+            {"user_id": user_id, "category": "grayscale", "original_name": original_name, "stored_name": stored_name},
+        ).scalar()
         conn.commit()
 
-    return StreamingResponse(
-        io.BytesIO(png_bytes),
-        media_type="image/png",
-        headers={"Content-Disposition": content_disposition(out_name)},
-    )
+    # 回傳有損 JPEG 當預覽:檔案小、顯示快,id 放在 header 供前端下載用
+    preview = io.BytesIO()
+    img.save(preview, format="JPEG", quality=85)
+    preview.seek(0)
+    return StreamingResponse(preview, media_type="image/jpeg", headers={"X-File-Id": str(file_id)})
 
 
 @app.get("/files")
@@ -162,7 +157,7 @@ def list_files(category: str, user_id: int = Depends(get_current_user)):
 
 
 @app.get("/files/{file_id}/download")
-def download_file(file_id: int, user_id: int = Depends(get_current_user)):
+def download_file(file_id: int, format: str = "png", user_id: int = Depends(get_current_user)):
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT original_name, stored_name FROM files WHERE id=:id AND user_id=:user_id"),
@@ -173,10 +168,23 @@ def download_file(file_id: int, user_id: int = Depends(get_current_user)):
     path = os.path.join(UPLOAD_DIR, row.stored_name)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="檔案不存在")
+
+    base = os.path.splitext(row.original_name)[0]  # 例如 xxx_bw
+    if format in ("jpeg", "jpg"):
+        # 從無損主檔即時轉成有損 JPEG(檔案小)
+        buf = io.BytesIO()
+        Image.open(path).convert("L").save(buf, format="JPEG", quality=92)
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="image/jpeg",
+            headers={"Content-Disposition": content_disposition(f"{base}.jpg")},
+        )
+    # 預設:無損 PNG,直接給主檔
     return FileResponse(
         path,
         media_type="image/png",
-        headers={"Content-Disposition": content_disposition(row.original_name)},
+        headers={"Content-Disposition": content_disposition(f"{base}.png")},
     )
 
 

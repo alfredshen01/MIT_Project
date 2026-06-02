@@ -56,7 +56,7 @@
   flex: 1;
   min-width: 0;
   max-width: 880px;
-  padding: 3rem 2.5rem 4rem;
+  padding: 2rem 2.5rem 3rem;
 }
 
 @media (max-width: 720px) {
@@ -83,7 +83,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .brand-title {
@@ -104,41 +104,57 @@
   color: var(--text-dim);
 }
 
-/* ---------- Dropzone ---------- */
+/* ---------- Dropzone(精簡版) ---------- */
 .content .ant-upload-wrapper .ant-upload-drag {
   background: var(--surface);
   border: 1px dashed var(--border-strong);
-  border-radius: 14px;
-  padding: 2.5rem 1rem;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  border-radius: 12px;
+  padding: 1rem;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .content .ant-upload-wrapper .ant-upload-drag:hover {
   border-color: var(--accent);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+
+/* 把圖示和文字排成一橫排,讓上傳區變矮 */
+.content .ant-upload-wrapper .ant-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.75rem;
 }
 
 .content .ant-upload-drag-icon {
+  margin: 0 !important;
   color: var(--text) !important;
 }
 
+.content .ant-upload-drag-icon .anticon {
+  font-size: 26px !important;
+}
+
 .content .ant-upload-text {
+  margin: 0 !important;
   color: var(--text) !important;
   font-weight: 500;
 }
 
 .content .ant-upload-hint {
+  flex-basis: 100%;
+  margin: 0.25rem 0 0 !important;
   color: var(--text-dim) !important;
-  font-size: 0.82rem !important;
+  font-size: 0.78rem !important;
 }
 
 /* ---------- Result panels ---------- */
 .result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  margin-top: 2rem;
+  gap: 1rem;
+  margin-top: 1.25rem;
 }
 
 @media (max-width: 640px) {
@@ -150,15 +166,15 @@
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.1rem;
+  border-radius: 12px;
+  padding: 0.9rem;
   text-align: center;
 }
 
 .panel-label {
   display: block;
-  margin-bottom: 0.9rem;
-  font-size: 0.66rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.64rem;
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -167,17 +183,17 @@
 
 .panel-img {
   max-width: 100%;
-  max-height: 360px;
+  max-height: 300px;
   object-fit: contain;
   border-radius: 8px;
 }
 
 .panel-actions {
-  margin-top: 1.1rem;
+  margin-top: 0.9rem;
 }
 
 .panel-loading {
-  height: 220px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -212,7 +228,7 @@
 
 /* ---------- Saved files list ---------- */
 .files-section {
-  margin-top: 3rem;
+  margin-top: 1.75rem;
 }
 
 .files-empty {
