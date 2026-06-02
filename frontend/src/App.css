@@ -104,36 +104,42 @@
   color: var(--text-dim);
 }
 
-/* ---------- Dropzone(精簡版) ---------- */
-.content .ant-upload-wrapper .ant-upload-drag {
+/* ---------- Dropzone(矮橫條) ---------- */
+.content .ant-upload-wrapper .ant-upload.ant-upload-drag {
+  height: auto !important;   /* 覆蓋 antd 預設的 height:100%,這是被撐高的主因 */
   background: var(--surface);
   border: 1px dashed var(--border-strong);
   border-radius: 12px;
-  padding: 1rem;
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.content .ant-upload-wrapper .ant-upload-drag:hover {
+.content .ant-upload-wrapper .ant-upload.ant-upload-drag:hover {
   border-color: var(--accent);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
-/* 把圖示和文字排成一橫排,讓上傳區變矮 */
-.content .ant-upload-wrapper .ant-upload-btn {
-  display: flex;
+.content .ant-upload-drag .ant-upload-btn {
+  padding: 0 !important;
+}
+
+/* 真正包住內容的是 drag-container,讓圖示+文字排成一橫排 */
+.content .ant-upload-drag-container {
+  display: flex !important;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.1rem 0.75rem;
+  gap: 0.1rem 0.7rem;
+  padding: 0.85rem 1rem;
 }
 
 .content .ant-upload-drag-icon {
   margin: 0 !important;
+  line-height: 1 !important;
   color: var(--text) !important;
 }
 
 .content .ant-upload-drag-icon .anticon {
-  font-size: 26px !important;
+  font-size: 24px !important;
 }
 
 .content .ant-upload-text {
@@ -144,7 +150,7 @@
 
 .content .ant-upload-hint {
   flex-basis: 100%;
-  margin: 0.25rem 0 0 !important;
+  margin: 0.2rem 0 0 !important;
   color: var(--text-dim) !important;
   font-size: 0.78rem !important;
 }
