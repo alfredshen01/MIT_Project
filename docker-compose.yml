@@ -11,7 +11,7 @@ services:
       - app-network
 
   api:
-    build: .
+    build: ./backend
     env_file:
       - .env
     environment:

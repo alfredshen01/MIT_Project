@@ -5,11 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'main.py'
-      - 'Dockerfile'
+      - 'backend/**'
       - 'docker-compose.yml'
-      - 'pyproject.toml'
-      - 'alembic/**'
       - 'frontend/**'
 
 jobs:
