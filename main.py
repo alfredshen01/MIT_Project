@@ -1,12 +1,14 @@
+import io
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 from jose import JWTError, jwt
+from PIL import Image
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 
@@ -14,6 +16,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:pwd@localhost:54
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 7
+
+ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 engine = create_engine(DATABASE_URL)
 bearer = HTTPBearer()
@@ -29,14 +34,6 @@ app.add_middleware(
 
 
 # ---------- Models ----------
-
-class Event(BaseModel):
-    title: str
-    description: Optional[str] = None
-    date: str
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-
 
 class UserRegister(BaseModel):
     username: str
@@ -75,12 +72,12 @@ def read_root():
 def register(body: UserRegister):
     hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
     with engine.connect() as conn:
-        existing = conn.execute(text("SELECT id FROM users WHERE username=:username"), {"username": body.username}).first()
+        existing = conn.execute(text("SELECT id FROM users WHERE username=:u"), {"u": body.username}).first()
         if existing:
             raise HTTPException(status_code=400, detail="帳號已被使用")
         conn.execute(
-            text("INSERT INTO users (username, hashed_password) VALUES (:username, :hashed)"),
-            {"username": body.username, "hashed": hashed},
+            text("INSERT INTO users (username, hashed_password) VALUES (:u, :h)"),
+            {"u": body.username, "h": hashed},
         )
         conn.commit()
     return {"message": "註冊成功"}
@@ -89,62 +86,36 @@ def register(body: UserRegister):
 @app.post("/login")
 def login(body: UserLogin):
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT id, hashed_password FROM users WHERE username=:username"), {"username": body.username}).first()
+        row = conn.execute(text("SELECT id, hashed_password FROM users WHERE username=:u"), {"u": body.username}).first()
     if not row or not bcrypt.checkpw(body.password.encode(), row.hashed_password.encode()):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
     return {"token": create_token(row.id)}
 
 
-@app.get("/events")
-def get_events(user_id: int = Depends(get_current_user)):
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("SELECT * FROM events WHERE user_id=:uid ORDER BY date, start_time"),
-            {"uid": user_id},
-        )
-        rows = result.mappings().all()
-    return [dict(row) for row in rows]
+@app.post("/convert")
+async def convert_to_bw(
+    file: UploadFile = File(...),
+    user_id: int = Depends(get_current_user),
+):
+    if file.content_type not in ALLOWED_MIME:
+        raise HTTPException(status_code=400, detail="只接受圖片檔案（JPEG、PNG、WebP、GIF、BMP）")
 
+    data = await file.read()
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="檔案不能超過 10 MB")
 
-@app.post("/events")
-def create_event(event: Event, user_id: int = Depends(get_current_user)):
-    data = event.model_dump()
-    data["start_time"] = data["start_time"] or None
-    data["end_time"] = data["end_time"] or None
-    data["user_id"] = user_id
-    with engine.connect() as conn:
-        conn.execute(
-            text("INSERT INTO events (title, description, date, start_time, end_time, user_id) "
-                 "VALUES (:title, :description, :date, :start_time, :end_time, :user_id)"),
-            data,
-        )
-        conn.commit()
-    return {"message": "事件新增成功"}
+    try:
+        img = Image.open(io.BytesIO(data)).convert("L")
+    except Exception:
+        raise HTTPException(status_code=400, detail="無法解析圖片，請確認檔案格式正確")
 
+    output = io.BytesIO()
+    img.save(output, format="PNG")
+    output.seek(0)
 
-@app.put("/events/{event_id}")
-def update_event(event_id: int, event: Event, user_id: int = Depends(get_current_user)):
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("UPDATE events SET title=:title, description=:description, date=:date, "
-                 "start_time=:start_time, end_time=:end_time "
-                 "WHERE id=:id AND user_id=:user_id"),
-            {**event.model_dump(), "id": event_id, "user_id": user_id},
-        )
-        conn.commit()
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="事件不存在")
-    return {"message": "事件更新成功"}
-
-
-@app.delete("/events/{event_id}")
-def delete_event(event_id: int, user_id: int = Depends(get_current_user)):
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("DELETE FROM events WHERE id=:id AND user_id=:user_id"),
-            {"id": event_id, "user_id": user_id},
-        )
-        conn.commit()
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="事件不存在")
-    return {"message": "事件刪除成功"}
+    filename = os.path.splitext(file.filename or "image")[0] + "_bw.png"
+    return StreamingResponse(
+        output,
+        media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
