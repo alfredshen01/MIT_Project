@@ -1,14 +1,72 @@
-/* ---------- Layout ---------- */
-.shell {
+/* ---------- Layout (sidebar + content) ---------- */
+.layout {
   min-height: 100vh;
   display: flex;
-  justify-content: center;
-  padding: 3rem 1.5rem 4rem;
 }
 
-.container {
-  width: 100%;
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 2rem 1rem;
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
+.folder-item {
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.folder-item:hover {
+  background: #f1f1f3;
+  color: var(--text);
+}
+
+.folder-item.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
   max-width: 880px;
+  padding: 3rem 2.5rem 4rem;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem;
+  }
+  .folder-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .content {
+    padding: 2rem 1.25rem 3rem;
+  }
 }
 
 /* ---------- Top bar ---------- */
@@ -38,7 +96,7 @@
 }
 
 /* ---------- Dropzone ---------- */
-.shell .ant-upload-wrapper .ant-upload-drag {
+.content .ant-upload-wrapper .ant-upload-drag {
   background: var(--surface);
   border: 1px dashed var(--border-strong);
   border-radius: 14px;
@@ -46,22 +104,22 @@
   transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-.shell .ant-upload-wrapper .ant-upload-drag:hover {
+.content .ant-upload-wrapper .ant-upload-drag:hover {
   border-color: var(--accent);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
   transform: translateY(-2px);
 }
 
-.shell .ant-upload-drag-icon {
+.content .ant-upload-drag-icon {
   color: var(--text) !important;
 }
 
-.shell .ant-upload-text {
+.content .ant-upload-text {
   color: var(--text) !important;
   font-weight: 500;
 }
 
-.shell .ant-upload-hint {
+.content .ant-upload-hint {
   color: var(--text-dim) !important;
   font-size: 0.82rem !important;
 }
@@ -141,4 +199,58 @@
 .login-card .brand-title {
   font-size: 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+/* ---------- Saved files list ---------- */
+.files-section {
+  margin-top: 3rem;
+}
+
+.files-empty {
+  margin-top: 1rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.file-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-row:last-child {
+  border-bottom: none;
+}
+
+.file-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 0.92rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-date {
+  margin-top: 0.15rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
 }

@@ -1,11 +1,12 @@
 import io
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import bcrypt
 from jose import JWTError, jwt
@@ -20,6 +21,10 @@ TOKEN_EXPIRE_DAYS = 7
 
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# 轉換後的檔案存放目錄(正式環境由 docker volume 掛載到 /data/files)
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(__file__), "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 engine = create_engine(DATABASE_URL)
 bearer = HTTPBearer()
@@ -47,7 +52,13 @@ class UserLogin(BaseModel):
     password: str
 
 
-# ---------- Auth helpers ----------
+# ---------- Helpers ----------
+
+def content_disposition(filename: str) -> str:
+    # HTTP header 只能用 latin-1;用 RFC 5987 同時給 ASCII fallback 與 UTF-8 原名
+    ascii_name = filename.encode("ascii", "ignore").decode() or "file"
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
+
 
 def create_token(user_id: int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=TOKEN_EXPIRE_DAYS)
@@ -111,18 +122,77 @@ async def convert_to_bw(
     except Exception:
         raise HTTPException(status_code=400, detail="無法解析圖片，請確認檔案格式正確")
 
-    output = io.BytesIO()
-    img.save(output, format="PNG")
-    output.seek(0)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
 
-    # 檔名可能含中文等非 ASCII 字元;HTTP header 只能用 latin-1,
-    # 因此用 RFC 5987:ASCII 安全的 filename 當 fallback,filename* 帶 UTF-8 原名
+    # 存到磁碟(隨機檔名避免衝突)並寫一筆記錄到 files 表,分類為 grayscale
+    stored_name = f"{uuid.uuid4().hex}.png"
+    with open(os.path.join(UPLOAD_DIR, stored_name), "wb") as f:
+        f.write(png_bytes)
+
     stem = os.path.splitext(file.filename or "image")[0]
     out_name = f"{stem}_bw.png"
-    ascii_name = out_name.encode("ascii", "ignore").decode() or "image_bw.png"
-    disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(out_name)}"
+    with engine.connect() as conn:
+        conn.execute(
+            text("INSERT INTO files (user_id, category, original_name, stored_name) "
+                 "VALUES (:user_id, :category, :original_name, :stored_name)"),
+            {"user_id": user_id, "category": "grayscale", "original_name": out_name, "stored_name": stored_name},
+        )
+        conn.commit()
+
     return StreamingResponse(
-        output,
+        io.BytesIO(png_bytes),
         media_type="image/png",
-        headers={"Content-Disposition": disposition},
+        headers={"Content-Disposition": content_disposition(out_name)},
     )
+
+
+@app.get("/files")
+def list_files(category: str, user_id: int = Depends(get_current_user)):
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT id, original_name, created_at FROM files "
+                 "WHERE user_id=:user_id AND category=:category ORDER BY created_at DESC"),
+            {"user_id": user_id, "category": category},
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@app.get("/files/{file_id}/download")
+def download_file(file_id: int, user_id: int = Depends(get_current_user)):
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT original_name, stored_name FROM files WHERE id=:id AND user_id=:user_id"),
+            {"id": file_id, "user_id": user_id},
+        ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="檔案不存在")
+    path = os.path.join(UPLOAD_DIR, row.stored_name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="檔案不存在")
+    return FileResponse(
+        path,
+        media_type="image/png",
+        headers={"Content-Disposition": content_disposition(row.original_name)},
+    )
+
+
+@app.delete("/files/{file_id}")
+def delete_file(file_id: int, user_id: int = Depends(get_current_user)):
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT stored_name FROM files WHERE id=:id AND user_id=:user_id"),
+            {"id": file_id, "user_id": user_id},
+        ).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="檔案不存在")
+        conn.execute(
+            text("DELETE FROM files WHERE id=:id AND user_id=:user_id"),
+            {"id": file_id, "user_id": user_id},
+        )
+        conn.commit()
+    path = os.path.join(UPLOAD_DIR, row.stored_name)
+    if os.path.exists(path):
+        os.remove(path)
+    return {"message": "已刪除"}
