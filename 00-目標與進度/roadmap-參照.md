@@ -20,7 +20,7 @@
 
 | 問題 | 對策 | 狀態 |
 |---|---|---|
-| 跳針卡死(temp=0 貪婪迴圈) | DEC-031 num_predict + 非零溫度 | ✅ 有界失敗 |
+| 跳針卡死(temp=0 之 greedy decoding repetition loop) | DEC-031 num_predict + 非零溫度 | ✅ 有界失敗 |
 | 幻覺技能名 | DEC-032 schema enum(grammar 級不可生成) | ✅ 根治 |
 | 殘餘跳針(thinking 段) | DEC-033 planner think:false | ✅ 歸零,快 ~10 倍 |
 | **規劃品質(寫入意圖遺漏)** | — | ❌ 困難集 M3/M5 仍 47%,現任瓶頸 |
@@ -58,8 +58,8 @@
    service 透傳 → router 載入 + 寫 tool 摘要訊息 → `assistant_history_max_messages=12`。
 4. **eval 升級為多輪 + 記憶落地後重跑 sweep**:E8 數據全是單輪量的,加 6 輪歷史後 prompt
    分佈改變,必須重驗單輪不退化 + 新增多輪指涉案例(第四個驗證循環,亦為記憶 before/after 素材)。
-5. **planner 寫入意圖 prompt 工程**:排記憶之後——記憶可能免費救掉部分多輪 case,先落地再量,
-   避免白做工。目標把困難集 47% 往上推,用 sweep 快速迭代。
+5. **planner 寫入意圖 prompt 工程**:排記憶之後——記憶可能無需額外投入即修復部分多輪 case,
+   先落地再量,避免無效投入。目標把困難集 47% 往上推,用 sweep 快速迭代。
 
 ### 遠期(視報告時程取捨)
 

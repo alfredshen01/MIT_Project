@@ -38,7 +38,7 @@ CloudDrive 是一套自架雲端硬碟,內嵌一個**在地運行（本機 gemma
 | **L** Lifecycle Hooks | 治理層攔截點;強制執行權限分層、核可、沙箱、稽核、**外送隱私閘** | `hooks.py`、`permissions.py`、`codeguard.py`、`sandbox.py` |
 | **V** Evaluation Interface | 離線開發者工具：確定性斷言 + LLM judge + baseline 回歸,API/browser/exec 三模式 | `backend/eval/`（獨立文件 B 詳述） |
 
-**呈現時的三個誠實注意（避免答辯被問倒）**：
+**呈現時的三個注意事項（答辯用）**：
 1. **V 不在請求路徑上**——它從外部打 `/assistant/chat` 評測,圖上畫在旁側。
 2. **sub-agent 目前唯一實例是 CodegenSubAgent**——不是通用多代理編排;正確說法是
    「主迴圈可派生 bounded sub-agent,目前實例化為 codegen 子代理」。
@@ -109,7 +109,7 @@ CloudDrive 是一套自架雲端硬碟,內嵌一個**在地運行（本機 gemma
 | DEC-017 | 助理一律經 service 層,不直接碰 DB/FS |
 | DEC-019 | 生成技能：核可 → 沙箱 → 稽核 |
 | DEC-020 | session/技能持久化到 DB |
-| DEC-029 | 誠實報告 + 有限重規劃,不採 agentic loop |
+| DEC-029 | 失敗回覆由程式以執行結果組合（honest reporting）+ 有限重規劃,不採 agentic loop |
 | DEC-031 | 結構化解碼防跳針（num_predict + 非零溫度） |
 | DEC-032 | schema enum：幻覺技能 grammar 級不可生成 |
 | DEC-033 | planner 預設關 thinking（跳針治本、快 10×） |

@@ -18,7 +18,7 @@ alfred 的個人學習與開發筆記，涵蓋前置期全端訓練（2026-05 �
 - [2026-06 前置期：Final_Project](01-日誌/2026-06-前置期-FinalProject.md) — 圖片轉換平台改版
 - [W1（0616~0622）](01-日誌/W1-0616~0622.md) — 加入 CloudDrive、建立 eval harness
 - [W2（0623~0629）](01-日誌/W2-0623~0629.md) — 環境建置、助理四功能、DB 對帳
-- [W3（0630~0706）](01-日誌/W3-0630~0706.md) — 約束解碼、誠實報告、失敗隔離、防跳針兩循環
+- [W3（0630~0706）](01-日誌/W3-0630~0706.md) — 約束解碼、以執行結果回報、失敗隔離、防跳針兩循環
 - [W4（0707~0713）](01-日誌/W4-0707~0713.md) — think:false、記憶 v1、recall 診斷閉環
 - [W5（0714~0720）](01-日誌/W5-0714~0720.md) — V0.2 需求審查、證據分級、筆記整併
 
@@ -26,10 +26,8 @@ alfred 的個人學習與開發筆記，涵蓋前置期全端訓練（2026-05 �
 
 CloudDrive AI 助理的架構、研究歷程與評測系統。
 
-- [harness架構-學習筆記](02-筆記-harness/harness架構-學習筆記.md) — 架構的系統性整理
-- [harness架構-研究日誌](02-筆記-harness/harness架構-研究日誌.md) — 研究歷程視角（6/17~7/09）
-- [harness架構-六元件對照](02-筆記-harness/harness架構-六元件對照.md) — 六核心元件 ↔ 九實作模組對照
-- [eval系統介紹](02-筆記-harness/eval系統介紹.md) — 評測 harness 的設計與用法
+- [harness筆記](02-筆記-harness/harness筆記.md) — 三部結構：架構與心法／研究歷程與數據（6/17~7/09）／答辯 Q&A 與速記
+- [eval系統速覽](02-筆記-harness/eval系統速覽.md) — 評測系統一頁版，詳細見 99 正式報告
 - [V02審查發現與測試現況](02-筆記-harness/V02審查發現與測試現況.md) — 9 項審查發現＋五層測試現況＋驗證計畫
 - [openai-oauth-problem](02-筆記-harness/openai-oauth-problem.md) — OpenAI OAuth 問題記錄（自 cloud_drive/doc 複製）
 
@@ -39,7 +37,7 @@ CloudDrive AI 助理的架構、研究歷程與評測系統。
 
 - [後端概念](03-筆記-前後端/後端概念.md) — Alembic／pgvector／測試模式／三表對帳／JWT+bcrypt
 - [前端概念](03-筆記-前後端/前端概念.md) — React hooks／受控元件／CORS／Vite／CloudDrive 前端架構
-- [開發筆記精選](03-筆記-前後端/開發筆記精選.md) — json_schema 傳遞鏈／誠實回報與授權邊界／失敗隔離／temperature／registry 與沙盒／外部模型踩雷
+- [開發筆記精選](03-筆記-前後端/開發筆記精選.md) — 固定欄位式結論：json_schema 傳遞鏈／回報與授權／失敗隔離／temperature／registry 與沙盒／外部模型實測
 
 ## 04 筆記：部署維運
 
@@ -49,8 +47,8 @@ CloudDrive AI 助理的架構、研究歷程與評測系統。
 
 正式報告的 Markdown 版（圖表【圖N】待補，正式版以 docx 為準）。
 
-- [REPORT_harness_architecture](99-報告/REPORT_harness_architecture.md)
-- [REPORT_testing_system](99-報告/REPORT_testing_system.md)
+- [harness架構報告](99-報告/harness架構報告.md)
+- [測試系統報告](99-報告/測試系統報告.md)
 
 ## 外部參照（隊友著作，不搬檔）
 
